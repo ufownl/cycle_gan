@@ -108,9 +108,6 @@ venv.bak/
 *.state
 *.params
 
-# jupyter notebooks
-*.ipynb
-
 # output and backup files
 *.out
 *.bak
