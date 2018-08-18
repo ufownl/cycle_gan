@@ -50,14 +50,14 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda, context
 
     print("Learning rate:", learning_rate, flush=True)
     trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
+        "learning_rate": learning_rate
     })
     trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "RMSProp", {
         "learning_rate": learning_rate,
         "clip_weights": 0.01
     })
     trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
+        "learning_rate": learning_rate
     })
     trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "RMSProp", {
         "learning_rate": learning_rate,
