@@ -80,7 +80,8 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda, context
     for epoch in range(max_epochs):
         ts = time.time()
 
-        training_L = 0.0
+        training_dis_L = 0.0
+        training_gen_L = 0.0
         training_batch = 0
 
         for batch_a, batch_b in get_batches(training_set_a, training_set_b, batch_size):
@@ -113,10 +114,13 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda, context
 
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
-                fake_b = gen_ab(real_a)
                 fake_a_y = dis_a(fake_a)
+                gen_ba_L = wgan_loss(fake_a_y)
+                fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
-                L = wgan_loss(fake_a_y) + wgan_loss(fake_b_y) + (l1_loss(gen_ba(fake_b), real_a) + l1_loss(gen_ab(fake_a), real_b)) * lmda
+                gen_ab_L = wgan_loss(fake_b_y)
+                cyc_L = l1_loss(gen_ba(fake_b), real_a) + l1_loss(gen_ab(fake_a), real_b)
+                L = gen_ba_L + gen_ab_L + cyc_L * lmda
                 L.backward()
             trainer_gen_ab.step(batch_size)
             trainer_gen_ba.step(batch_size)
@@ -124,15 +128,15 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda, context
             if gen_L != gen_L:
                 raise ValueError()
 
-            batch_L = dis_a_L + dis_b_L
-            training_L += batch_L
-            print("[Epoch %d  Batch %d]  batch_loss %.10f  gen_loss %.10f  average_loss %.10f  elapsed %.2fs" % (
-                epoch, training_batch, batch_L, gen_L, training_L / training_batch, time.time() - ts
+            dis_L = dis_a_L + dis_b_L
+            training_dis_L += dis_L
+            training_gen_L += gen_L
+            print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  elapsed %.2fs" % (
+                epoch, training_batch, dis_L, gen_L, time.time() - ts
             ), flush=True)
 
-        avg_L = training_L / training_batch
-        print("[Epoch %d]  training_loss %.10f  duration %.2fs" % (
-            epoch + 1, avg_L, time.time() - ts
+        print("[Epoch %d]  training_dis_loss %.10f  training_gen_loss %.10f  duration %.2fs" % (
+            epoch + 1, training_dis_L / training_batch, training_gen_L / training_batch, time.time() - ts
         ), flush=True)
 
         gen_ab.save_parameters(gen_ab_params_file)
@@ -167,7 +171,7 @@ if __name__ == "__main__":
                 learning_rate = args.learning_rate,
                 batch_size = 8,
                 filters = 64,
-                lmda = 0.01,
+                lmda = 0.1,
                 context = context
             )
             break;
