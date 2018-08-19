@@ -5,7 +5,7 @@ import mxnet as mx
 from dataset import load_dataset, get_batches
 from pix2pix_gan import UnetGenerator, Discriminator, WassersteinLoss
 
-def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda, context):
+def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda_cyc, lmda_idt, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -120,7 +120,8 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda, context
                 fake_b_y = dis_b(fake_b)
                 gen_ab_L = wgan_loss(fake_b_y)
                 cyc_L = l1_loss(gen_ba(fake_b), real_a) + l1_loss(gen_ab(fake_a), real_b)
-                L = gen_ba_L + gen_ab_L + cyc_L * lmda
+                idt_L = l1_loss(gen_ba(real_a), real_a) + l1_loss(gen_ab(real_b), real_b)
+                L = gen_ba_L + gen_ab_L + cyc_L * lmda_cyc + idt_L * lmda_cyc * lmda_idt
                 L.backward()
             trainer_gen_ab.step(batch_size)
             trainer_gen_ba.step(batch_size)
@@ -171,7 +172,8 @@ if __name__ == "__main__":
                 learning_rate = args.learning_rate,
                 batch_size = 8,
                 filters = 64,
-                lmda = 0.1,
+                lmda_cyc = 10,
+                lmda_idt = 0.5,
                 context = context
             )
             break;
