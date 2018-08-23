@@ -170,7 +170,7 @@ if __name__ == "__main__":
                 dataset = args.dataset,
                 max_epochs = args.max_epochs,
                 learning_rate = args.learning_rate,
-                batch_size = 8,
+                batch_size = 1,
                 filters = 64,
                 lmda_cyc = 10,
                 lmda_idt = 0.5,

@@ -15,7 +15,7 @@ class UnetUnit(mx.gluon.nn.Block):
                 padding = 1,
                 use_bias = use_bias
             )
-            en_norm = mx.gluon.nn.BatchNorm()
+            en_norm = mx.gluon.nn.InstanceNorm()
 
             de_relu = mx.gluon.nn.Activation("relu")
             de_conv = mx.gluon.nn.Conv2DTranspose(
@@ -25,7 +25,7 @@ class UnetUnit(mx.gluon.nn.Block):
                 padding = 1,
                 use_bias = use_bias
             )
-            de_norm = mx.gluon.nn.BatchNorm()
+            de_norm = mx.gluon.nn.InstanceNorm()
 
             if outermost:
                 encoder = [en_conv]
@@ -99,7 +99,7 @@ class Discriminator(mx.gluon.nn.Block):
                     use_bias = use_bias
                 ))
                 if i > 0:
-                    self._net.add(mx.gluon.nn.BatchNorm())
+                    self._net.add(mx.gluon.nn.InstanceNorm())
                 self._net.add(mx.gluon.nn.LeakyReLU(0.2))
             self._net.add(mx.gluon.nn.Conv2D(
                 channels = 1,
@@ -131,11 +131,11 @@ if __name__ == "__main__":
     loss = WassersteinLoss()
     real_in = mx.nd.zeros((4, 3, 256, 256))
     real_out = mx.nd.ones((4, 3, 256, 256))
-    real_y = net_d(mx.nd.concat(real_in, real_out, dim=1))
+    real_y = net_d(real_out)
     print("real_y: ", real_y)
     fake_out = net_g(real_in)
     print("fake_out: ", fake_out)
-    fake_y = net_d(mx.nd.concat(real_in, fake_out, dim=1))
+    fake_y = net_d(fake_out)
     print("fake_y: ", fake_y)
     print("loss_g: ", loss(fake_y))
     print("loss_d: ", loss(fake_y, real_y))
