@@ -115,21 +115,33 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda_cyc, lmd
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
                 fake_a_y = dis_a(fake_a)
-                gen_ba_L = wgan_loss(fake_a_y)
+                rec_b = gen_ab(fake_a)
+                cyc_b_L = l1_loss(rec_b, real_b)
+                idt_a = gen_ba(real_a)
+                idt_a_L = l1_loss(idt_a, real_a)
+                L = wgan_loss(fake_a_y) + cyc_b_L * lmda_cyc + idt_a_L * lmda_cyc * lmda_idt
+                L.backward()
+            trainer_gen_ba.step(batch_size)
+            gen_ba_L = mx.nd.mean(L).asscalar()
+            if gen_ba_L != gen_ba_L:
+                raise ValueError()
+
+            with mx.autograd.record():
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
-                gen_ab_L = wgan_loss(fake_b_y)
-                cyc_L = l1_loss(gen_ba(fake_b), real_a) + l1_loss(gen_ab(fake_a), real_b)
-                idt_L = l1_loss(gen_ba(real_a), real_a) + l1_loss(gen_ab(real_b), real_b)
-                L = gen_ba_L + gen_ab_L + cyc_L * lmda_cyc + idt_L * lmda_cyc * lmda_idt
+                rec_a = gen_ba(fake_b)
+                cyc_a_L = l1_loss(rec_a, real_a)
+                idt_b = gen_ab(real_b)
+                idt_b_L = l1_loss(idt_b, real_b)
+                L = wgan_loss(fake_b_y) + cyc_a_L * lmda_cyc + idt_b_L * lmda_cyc * lmda_idt
                 L.backward()
             trainer_gen_ab.step(batch_size)
-            trainer_gen_ba.step(batch_size)
-            gen_L = mx.nd.mean(L).asscalar()
-            if gen_L != gen_L:
+            gen_ab_L = mx.nd.mean(L).asscalar()
+            if gen_ab_L != gen_ab_L:
                 raise ValueError()
 
             dis_L = dis_a_L + dis_b_L
+            gen_L = gen_ba_L + gen_ab_L
             training_dis_L += dis_L
             training_gen_L += gen_L
             print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  elapsed %.2fs" % (
