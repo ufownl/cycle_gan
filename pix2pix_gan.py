@@ -1,8 +1,25 @@
 import math
 import mxnet as mx
 
+class ResBlock(mx.gluon.nn.Block):
+    def __init__(self, filters, use_bias=True, **kwargs):
+        super(ResBlock, self).__init__(**kwargs)
+        self._net = mx.gluon.nn.Sequential()
+        with self.name_scope():
+            self._net.add(
+                mx.gluon.nn.Conv2D(filters, 3, padding=1, use_bias=use_bias),
+                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.Conv2D(filters, 3, padding=1, use_bias=use_bias),
+                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.Activation("relu")
+            )
+
+    def forward(self, x):
+        return self._net(x) + x
+
+
 class UnetUnit(mx.gluon.nn.Block):
-    def __init__(self, in_channels, out_channels, inner_block=None, outermost=False, dropout=0.0, use_bias=False, **kwargs):
+    def __init__(self, in_channels, out_channels, inner_block=None, outermost=False, dropout=0.0, use_bias=True, **kwargs):
         super(UnetUnit, self).__init__(**kwargs)
         self._outermost = outermost
 
@@ -58,12 +75,18 @@ class UnetUnit(mx.gluon.nn.Block):
 
 
 class UnetGenerator(mx.gluon.nn.Block):
-    def __init__(self, channels, filters, units=8, dropout=0.5, use_bias=False, **kwargs):
+    def __init__(self, channels, filters, unet_units=3, res_blocks=9, dropout=0.5, use_bias=True, **kwargs):
         super(UnetGenerator, self).__init__(**kwargs)
         
         with self.name_scope():
-            unit = None
-            for i in reversed(range(units - 1)):
+            if res_blocks > 0:
+                unit = mx.gluon.nn.Sequential()
+                for i in range(res_blocks):
+                    unit.add(ResBlock(filters * min(2 ** (unet_units - 1), 8), use_bias=use_bias))
+            else:
+                unit = None
+
+            for i in reversed(range(unet_units - 1)):
                 unit = UnetUnit(
                     in_channels = filters * min(2 ** (i + 1), 8),
                     out_channels = filters * min(2 ** i, 8),
@@ -85,7 +108,7 @@ class UnetGenerator(mx.gluon.nn.Block):
 
 
 class Discriminator(mx.gluon.nn.Block):
-    def __init__(self, filters, layers=7, use_bias=False, **kwargs):
+    def __init__(self, filters, layers=7, use_bias=True, **kwargs):
         super(Discriminator, self).__init__(**kwargs)
 
         with self.name_scope():
@@ -124,7 +147,7 @@ class WassersteinLoss(mx.gluon.loss.Loss):
 
 
 if __name__ == "__main__":
-    net_g = UnetGenerator(3, 64)
+    net_g = UnetGenerator(3, 32)
     net_g.initialize(mx.init.Xavier())
     net_d = Discriminator(64)
     net_d.initialize(mx.init.Xavier())
