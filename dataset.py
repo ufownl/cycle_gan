@@ -28,30 +28,14 @@ def load_dataset(name, category, image_size=(256, 256)):
     return imgs
 
 def get_batches(dataset_a, dataset_b, batch_size, image_size=(256, 256)):
-    random.shuffle(dataset_a)
-    random.shuffle(dataset_b)
-    batches_a = len(dataset_a) // batch_size
-    batches_b = len(dataset_b) // batch_size
-    i = 0
-    j = 0
-    finish_a = False
-    finish_b = False
-    while True:
-        if i >= batches_a:
-            finish_a = True
-            i = 0
-        if j >= batches_b:
-            finish_b = True
-            j = 0
-        if finish_a and finish_b:
-            break;
-        start_a = i * batch_size
-        batch_a = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_a[start_a:start_a+batch_size]]
-        start_b = j * batch_size
-        batch_b = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_b[start_b:start_b+batch_size]]
+    batches = min(len(dataset_a) // batch_size, len(dataset_b) // batch_size)
+    dataset_a = random.sample(dataset_a, batches)
+    dataset_b = random.sample(dataset_b, batches)
+    for i in range(batches):
+        start = i * batch_size
+        batch_a = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_a[start:start+batch_size]]
+        batch_b = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_b[start:start+batch_size]]
         yield mx.nd.concat(*batch_a, dim=0), mx.nd.concat(*batch_b, dim=0)
-        i += 1
-        j += 1
 
 def visualize(img):
    plt.imshow(((img.T + 1.0) * 127.5).asnumpy().astype(np.uint8))
