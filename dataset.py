@@ -29,8 +29,8 @@ def load_dataset(name, category, image_size=(256, 256)):
 
 def get_batches(dataset_a, dataset_b, batch_size, image_size=(256, 256)):
     batches = min(len(dataset_a) // batch_size, len(dataset_b) // batch_size)
-    dataset_a = random.sample(dataset_a, batches)
-    dataset_b = random.sample(dataset_b, batches)
+    dataset_a = random.sample(dataset_a, batches * batch_size)
+    dataset_b = random.sample(dataset_b, batches * batch_size)
     for i in range(batches):
         start = i * batch_size
         batch_a = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_a[start:start+batch_size]]
