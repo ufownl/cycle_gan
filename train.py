@@ -5,7 +5,7 @@ import mxnet as mx
 from dataset import load_dataset, get_batches
 from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss
 
-def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda_cyc, lmda_idt, context):
+def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -183,7 +183,6 @@ if __name__ == "__main__":
                 max_epochs = args.max_epochs,
                 learning_rate = args.learning_rate,
                 batch_size = 1,
-                filters = 64,
                 lmda_cyc = 10,
                 lmda_idt = 0.5,
                 context = context
