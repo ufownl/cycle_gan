@@ -3,7 +3,7 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
-from pix2pix_gan import UnetGenerator, Discriminator, WassersteinLoss
+from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss
 
 def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda_cyc, lmda_idt, context):
     mx.random.seed(int(time.time()))
@@ -12,10 +12,10 @@ def train(dataset, max_epochs, learning_rate, batch_size, filters, lmda_cyc, lmd
     training_set_a = load_dataset(dataset, "trainA")
     training_set_b = load_dataset(dataset, "trainB")
 
-    gen_ab = UnetGenerator(3, filters)
-    dis_b = Discriminator(filters)
-    gen_ba = UnetGenerator(3, filters)
-    dis_a = Discriminator(filters)
+    gen_ab = ResnetGenerator()
+    dis_b = Discriminator()
+    gen_ba = ResnetGenerator()
+    dis_a = Discriminator()
     wgan_loss = WassersteinLoss()
     l1_loss = mx.gluon.loss.L1Loss()
 

@@ -2,134 +2,86 @@ import math
 import mxnet as mx
 
 class ResBlock(mx.gluon.nn.Block):
-    def __init__(self, filters, use_bias=True, **kwargs):
+    def __init__(self, filters, **kwargs):
         super(ResBlock, self).__init__(**kwargs)
         self._net = mx.gluon.nn.Sequential()
         with self.name_scope():
             self._net.add(
-                mx.gluon.nn.Conv2D(filters, 3, padding=1, use_bias=use_bias),
+                mx.gluon.nn.ReflectionPad2D(1),
+                mx.gluon.nn.Conv2D(filters, 3),
                 mx.gluon.nn.InstanceNorm(),
-                mx.gluon.nn.Conv2D(filters, 3, padding=1, use_bias=use_bias),
-                mx.gluon.nn.InstanceNorm(),
-                mx.gluon.nn.Activation("relu")
+                mx.gluon.nn.Activation("relu"),
+                mx.gluon.nn.ReflectionPad2D(1),
+                mx.gluon.nn.Conv2D(filters, 3),
+                mx.gluon.nn.InstanceNorm()
             )
 
     def forward(self, x):
         return self._net(x) + x
 
 
-class UnetUnit(mx.gluon.nn.Block):
-    def __init__(self, in_channels, out_channels, inner_block=None, outermost=False, dropout=0.0, use_bias=True, **kwargs):
-        super(UnetUnit, self).__init__(**kwargs)
-        self._outermost = outermost
+class ResnetGenerator(mx.gluon.nn.Block):
+    def __init__(self, channels=3, filters=64, res_blocks=9, downsample_layers=2, **kwargs):
+        super(ResnetGenerator, self).__init__(**kwargs)
 
+        self._net = mx.gluon.nn.Sequential()
         with self.name_scope():
-            en_relu = mx.gluon.nn.LeakyReLU(0.2)
-            en_conv = mx.gluon.nn.Conv2D(
-                channels = in_channels,
-                kernel_size = 4,
-                strides = 2,
-                padding = 1,
-                use_bias = use_bias
+            self._net.add(
+                mx.gluon.nn.ReflectionPad2D(3),
+                mx.gluon.nn.Conv2D(filters, 7),
+                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.Activation("relu")
             )
-            en_norm = mx.gluon.nn.InstanceNorm()
-
-            de_relu = mx.gluon.nn.Activation("relu")
-            de_conv = mx.gluon.nn.Conv2DTranspose(
-                channels = out_channels,
-                kernel_size = 4,
-                strides = 2,
-                padding = 1,
-                use_bias = use_bias
-            )
-            de_norm = mx.gluon.nn.InstanceNorm()
-
-            if outermost:
-                encoder = [en_conv]
-                decoder = [de_relu, de_conv, mx.gluon.nn.Activation("tanh")]
-                if inner_block is None:
-                    blocks = encoder + decoder
-                else:
-                    blocks = encoder + [inner_block] + decoder
-            elif inner_block is None:
-                encoder = [en_relu, en_conv]
-                decoder = [de_relu, de_conv, de_norm]
-                blocks = encoder + decoder
-            else:
-                encoder = [en_relu, en_conv, en_norm]
-                decoder = [de_relu, de_conv, de_norm]
-                blocks = encoder + [inner_block] + decoder
-
-            if dropout > 0:
-                blocks += [mx.gluon.nn.Dropout(dropout)]
-
-            self._net = mx.gluon.nn.Sequential()
-            for blk in blocks:
-                self._net.add(blk)
-    
-    def forward(self, x):
-        if self._outermost:
-            return self._net(x)
-        else:
-            return mx.nd.concat(self._net(x), x, dim=1)
-
-
-class UnetGenerator(mx.gluon.nn.Block):
-    def __init__(self, channels, filters, unet_units=3, res_blocks=9, dropout=0.5, use_bias=True, **kwargs):
-        super(UnetGenerator, self).__init__(**kwargs)
-        
-        with self.name_scope():
-            if res_blocks > 0:
-                unit = mx.gluon.nn.Sequential()
-                for i in range(res_blocks):
-                    unit.add(ResBlock(filters * min(2 ** (unet_units - 1), 8), use_bias=use_bias))
-            else:
-                unit = None
-
-            for i in reversed(range(unet_units - 1)):
-                unit = UnetUnit(
-                    in_channels = filters * min(2 ** (i + 1), 8),
-                    out_channels = filters * min(2 ** i, 8),
-                    inner_block = unit,
-                    dropout = dropout,
-                    use_bias = use_bias
+            for i in range(downsample_layers):
+                self._net.add(
+                    mx.gluon.nn.Conv2D(2 ** (i + 1) * filters, 3, 2, 1),
+                    mx.gluon.nn.InstanceNorm(),
+                    mx.gluon.nn.Activation("relu")
                 )
-            unit = UnetUnit(
-                in_channels = filters,
-                out_channels = channels,
-                inner_block=unit,
-                outermost=True,
-                use_bias = use_bias
+            res_filters = 2 ** downsample_layers * filters
+            for i in range(res_blocks):
+                self._net.add(
+                    ResBlock(res_filters),
+                    mx.gluon.nn.Activation("relu")
+                )
+            for i in range(downsample_layers):
+                self._net.add(
+                    mx.gluon.nn.Conv2DTranspose(2 ** (downsample_layers - i - 1) * filters, 3, 2, 1, 1),
+                    mx.gluon.nn.InstanceNorm(),
+                    mx.gluon.nn.Activation("relu")
+                )
+            self._net.add(
+                mx.gluon.nn.ReflectionPad2D(3),
+                mx.gluon.nn.Conv2D(channels, 7),
+                mx.gluon.nn.Activation("tanh")
             )
-            self._net = unit
 
     def forward(self, x):
         return self._net(x)
 
 
 class Discriminator(mx.gluon.nn.Block):
-    def __init__(self, filters, layers=7, use_bias=True, **kwargs):
+    def __init__(self, filters=64, layers=3, **kwargs):
         super(Discriminator, self).__init__(**kwargs)
 
         with self.name_scope():
             self._net = mx.gluon.nn.Sequential()
-            for i in range(layers - 1):
-                self._net.add(mx.gluon.nn.Conv2D(
-                    channels = filters * min(2 ** i, 8),
-                    kernel_size = 4,
-                    strides = 2,
-                    padding = 1,
-                    use_bias = use_bias
-                ))
-                if i > 0:
-                    self._net.add(mx.gluon.nn.InstanceNorm())
-                self._net.add(mx.gluon.nn.LeakyReLU(0.2))
-            self._net.add(mx.gluon.nn.Conv2D(
-                channels = 1,
-                kernel_size = 4,
-                strides = 1,
-                padding = 0
-            ))
+            self._net.add(
+                mx.gluon.nn.Conv2D(filters, 4, 2, 1),
+                mx.gluon.nn.LeakyReLU(0.2)
+            )
+            for i in range(1, layers):
+                self._net.add(
+                    mx.gluon.nn.Conv2D(min(2 ** i, 8) * filters, 4, 2, 1),
+                    mx.gluon.nn.InstanceNorm(),
+                    mx.gluon.nn.LeakyReLU(0.2)
+                )
+            self._net.add(
+                mx.gluon.nn.Conv2D(min(2 ** layers, 8) * filters, 4, 1, 1),
+                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.LeakyReLU(0.2),
+                mx.gluon.nn.Conv2D(1, 4, 1, 1)
+            )
 
     def forward(self, x):
         return self._net(x)
@@ -147,9 +99,9 @@ class WassersteinLoss(mx.gluon.loss.Loss):
 
 
 if __name__ == "__main__":
-    net_g = UnetGenerator(3, 32)
+    net_g = ResnetGenerator()
     net_g.initialize(mx.init.Xavier())
-    net_d = Discriminator(64)
+    net_d = Discriminator()
     net_d.initialize(mx.init.Xavier())
     loss = WassersteinLoss()
     real_in = mx.nd.zeros((4, 3, 256, 256))

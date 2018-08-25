@@ -4,11 +4,11 @@ import argparse
 import mxnet as mx
 import matplotlib.pyplot as plt
 from dataset import load_image, cook_image, visualize
-from pix2pix_gan import UnetGenerator
+from pix2pix_gan import ResnetGenerator
 
 def test(images, model, is_reversed, filters, context):
     print("Loading model...", flush=True)
-    net = UnetGenerator(3, filters)
+    net = ResnetGenerator()
     if is_reversed:
         net.load_parameters("model/{}.gen_ba.params".format(model), ctx=context)
     else:
