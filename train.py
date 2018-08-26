@@ -3,7 +3,7 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
-from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss
+from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss, GANInitializer
 
 def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, context):
     mx.random.seed(int(time.time()))
@@ -31,22 +31,22 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, co
     if os.path.isfile(gen_ab_params_file):
         gen_ab.load_parameters(gen_ab_params_file, ctx=context)
     else:
-        gen_ab.initialize(mx.init.Xavier(), ctx=context)
+        gen_ab.initialize(GANInitializer(), ctx=context)
 
     if os.path.isfile(dis_b_params_file):
         dis_b.load_parameters(dis_b_params_file, ctx=context)
     else:
-        dis_b.initialize(mx.init.Xavier(), ctx=context)
+        dis_b.initialize(GANInitializer(), ctx=context)
 
     if os.path.isfile(gen_ba_params_file):
         gen_ba.load_parameters(gen_ba_params_file, ctx=context)
     else:
-        gen_ba.initialize(mx.init.Xavier(), ctx=context)
+        gen_ba.initialize(GANInitializer(), ctx=context)
 
     if os.path.isfile(dis_a_params_file):
         dis_a.load_parameters(dis_a_params_file, ctx=context)
     else:
-        dis_a.initialize(mx.init.Xavier(), ctx=context)
+        dis_a.initialize(GANInitializer(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
     trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "RMSProp", {

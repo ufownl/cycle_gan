@@ -1,4 +1,3 @@
-import math
 import mxnet as mx
 
 class ResBlock(mx.gluon.nn.Block):
@@ -9,11 +8,11 @@ class ResBlock(mx.gluon.nn.Block):
             self._net.add(
                 mx.gluon.nn.ReflectionPad2D(1),
                 mx.gluon.nn.Conv2D(filters, 3),
-                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                 mx.gluon.nn.Activation("relu"),
                 mx.gluon.nn.ReflectionPad2D(1),
                 mx.gluon.nn.Conv2D(filters, 3),
-                mx.gluon.nn.InstanceNorm()
+                mx.gluon.nn.InstanceNorm(gamma_initializer=None)
             )
 
     def forward(self, x):
@@ -29,13 +28,13 @@ class ResnetGenerator(mx.gluon.nn.Block):
             self._net.add(
                 mx.gluon.nn.ReflectionPad2D(3),
                 mx.gluon.nn.Conv2D(filters, 7),
-                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                 mx.gluon.nn.Activation("relu")
             )
             for i in range(downsample_layers):
                 self._net.add(
                     mx.gluon.nn.Conv2D(2 ** (i + 1) * filters, 3, 2, 1),
-                    mx.gluon.nn.InstanceNorm(),
+                    mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                     mx.gluon.nn.Activation("relu")
                 )
             res_filters = 2 ** downsample_layers * filters
@@ -47,7 +46,7 @@ class ResnetGenerator(mx.gluon.nn.Block):
             for i in range(downsample_layers):
                 self._net.add(
                     mx.gluon.nn.Conv2DTranspose(2 ** (downsample_layers - i - 1) * filters, 3, 2, 1, 1),
-                    mx.gluon.nn.InstanceNorm(),
+                    mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                     mx.gluon.nn.Activation("relu")
                 )
             self._net.add(
@@ -73,12 +72,12 @@ class Discriminator(mx.gluon.nn.Block):
             for i in range(1, layers):
                 self._net.add(
                     mx.gluon.nn.Conv2D(min(2 ** i, 8) * filters, 4, 2, 1),
-                    mx.gluon.nn.InstanceNorm(),
+                    mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
             self._net.add(
                 mx.gluon.nn.Conv2D(min(2 ** layers, 8) * filters, 4, 1, 1),
-                mx.gluon.nn.InstanceNorm(),
+                mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                 mx.gluon.nn.LeakyReLU(0.2),
                 mx.gluon.nn.Conv2D(1, 4, 1, 1)
             )
@@ -98,11 +97,25 @@ class WassersteinLoss(mx.gluon.loss.Loss):
             return F.mean(fake_y - real_y, axis=self._batch_axis, exclude=True)
 
 
+@mx.init.register
+class GANInitializer(mx.init.Initializer):
+    def __init__(self, **kwargs):
+        super(GANInitializer, self).__init__(**kwargs)
+
+    def _init_weight(self, name, arr):
+        if name.endswith("weight"):
+            arr[:] = mx.nd.random_normal(0.0, 0.02, arr.shape)
+        elif name.endswith("gamma"):
+            arr[:] = mx.nd.random_normal(1.0, 0.02, arr.shape)
+        else:
+            a[:] = 0.0
+
+
 if __name__ == "__main__":
     net_g = ResnetGenerator()
-    net_g.initialize(mx.init.Xavier())
+    net_g.initialize(GANInitializer())
     net_d = Discriminator()
-    net_d.initialize(mx.init.Xavier())
+    net_d.initialize(GANInitializer())
     loss = WassersteinLoss()
     real_in = mx.nd.zeros((4, 3, 256, 256))
     real_out = mx.nd.ones((4, 3, 256, 256))
