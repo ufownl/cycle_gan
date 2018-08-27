@@ -106,7 +106,10 @@ class GANInitializer(mx.init.Initializer):
         if name.endswith("weight"):
             arr[:] = mx.nd.random_normal(0.0, 0.02, arr.shape)
         elif name.endswith("gamma"):
-            arr[:] = mx.nd.random_normal(1.0, 0.02, arr.shape)
+            if name.find("batchnorm") != -1:
+                arr[:] = mx.nd.random_normal(1.0, 0.02, arr.shape)
+            else:
+                arr[:] = 1.0
         else:
             a[:] = 0.0
 
