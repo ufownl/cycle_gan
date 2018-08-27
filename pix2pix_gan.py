@@ -39,10 +39,7 @@ class ResnetGenerator(mx.gluon.nn.Block):
                 )
             res_filters = 2 ** downsample_layers * filters
             for i in range(res_blocks):
-                self._net.add(
-                    ResBlock(res_filters),
-                    mx.gluon.nn.Activation("relu")
-                )
+                self._net.add(ResBlock(res_filters))
             for i in range(downsample_layers):
                 self._net.add(
                     mx.gluon.nn.Conv2DTranspose(2 ** (downsample_layers - i - 1) * filters, 3, 2, 1, 1),
