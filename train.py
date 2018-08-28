@@ -4,8 +4,9 @@ import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
 from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss, GANInitializer
+from image_pool import ImagePool
 
-def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, context):
+def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -76,6 +77,9 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, co
     if os.path.isfile(dis_a_state_file):
         trainer_dis_a.load_states(dis_a_state_file)
 
+    fake_a_pool = ImagePool(pool_size)
+    fake_b_pool = ImagePool(pool_size)
+
     print("Training...", flush=True)
     for epoch in range(max_epochs):
         ts = time.time()
@@ -94,7 +98,7 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, co
 
             with mx.autograd.record():
                 real_a_y = dis_a(real_a)
-                fake_a_y = dis_a(fake_a)
+                fake_a_y = dis_a(fake_a_pool.query(fake_a))
                 L = wgan_loss(fake_a_y, real_a_y)
                 L.backward()
             trainer_dis_a.step(batch_size)
@@ -104,7 +108,7 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, co
 
             with mx.autograd.record():
                 real_b_y = dis_b(real_b)
-                fake_b_y = dis_b(fake_b)
+                fake_b_y = dis_b(fake_b_pool.query(fake_b))
                 L = wgan_loss(fake_b_y, real_b_y)
                 L.backward()
             trainer_dis_b.step(batch_size)
@@ -185,6 +189,7 @@ if __name__ == "__main__":
                 batch_size = 1,
                 lmda_cyc = 10,
                 lmda_idt = 0.5,
+                pool_size = 50,
                 context = context
             )
             break;
