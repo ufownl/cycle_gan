@@ -10,9 +10,10 @@ def load_image(path):
         buf = f.read()
     return mx.image.imdecode(buf)
 
-def cook_image(img, size):
-    img = mx.image.resize_short(img, min(size))
-    img, _ = mx.image.center_crop(img, size)
+def cook_image(img, size=None):
+    if not size is None:
+        img = mx.image.resize_short(img, min(size))
+        img, _ = mx.image.center_crop(img, size)
     return img.astype("float32") / 127.5 - 1.0
 
 def load_dataset(name, category, image_size=(256, 256)):

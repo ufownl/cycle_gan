@@ -16,7 +16,7 @@ def test(images, model, is_reversed, filters, context):
 
     for path in images:
         print(path)
-        real = cook_image(load_image(path), (256, 256))
+        real = cook_image(load_image(path))
         real = real.T.expand_dims(0).as_in_context(context)
         fake = net(real)
         plt.subplot(1, 2, 1)
