@@ -10,13 +10,16 @@ def load_image(path):
         buf = f.read()
     return mx.image.imdecode(buf)
 
-def cook_image(img, size=None):
-    if not size is None:
-        img = mx.image.resize_short(img, min(size))
-        img, _ = mx.image.center_crop(img, size)
+def cook_image(img, fine_size=None, load_size=None):
+    if not fine_size is None:
+        if load_size is None:
+            img = mx.image.resize_short(img, min(fine_size))
+        else:
+            img = mx.image.resize_short(img, min(load_size))
+        img, _ = mx.image.random_crop(img, fine_size)
     return img.astype("float32") / 127.5 - 1.0
 
-def load_dataset(name, category, image_size=(256, 256)):
+def load_dataset(name, category):
     url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/%s.zip" % (name)
     data_path = "data"
     if not os.path.exists(os.path.join(data_path, name)):
@@ -28,14 +31,14 @@ def load_dataset(name, category, image_size=(256, 256)):
     imgs = [os.path.join(path, f) for path, _, files in os.walk(os.path.join(data_path, name, category)) for f in files]
     return imgs
 
-def get_batches(dataset_a, dataset_b, batch_size, image_size=(256, 256)):
-    batches = min(len(dataset_a) // batch_size, len(dataset_b) // batch_size)
-    dataset_a = random.sample(dataset_a, batches * batch_size)
-    dataset_b = random.sample(dataset_b, batches * batch_size)
+def get_batches(dataset_a, dataset_b, batch_size, fine_size=(256, 256), load_size=(286, 286)):
+    random.shuffle(dataset_a)
+    random.shuffle(dataset_b)
+    batches = max(len(dataset_a), len(dataset_b)) // batch_size
     for i in range(batches):
         start = i * batch_size
-        batch_a = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_a[start:start+batch_size]]
-        batch_b = [cook_image(load_image(img), image_size).T.expand_dims(0) for img in dataset_b[start:start+batch_size]]
+        batch_a = [cook_image(load_image(dataset_a[j%len(dataset_a)]), fine_size, load_size).T.expand_dims(0) for j in range(start, start+batch_size)]
+        batch_b = [cook_image(load_image(dataset_b[j%len(dataset_b)]), fine_size, load_size).T.expand_dims(0) for j in range(start, start+batch_size)]
         yield mx.nd.concat(*batch_a, dim=0), mx.nd.concat(*batch_b, dim=0)
 
 def visualize(img):
