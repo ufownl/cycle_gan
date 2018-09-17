@@ -3,7 +3,7 @@ import random
 import argparse
 import mxnet as mx
 import matplotlib.pyplot as plt
-from dataset import load_image, cook_image, visualize
+from dataset import load_image, visualize
 from pix2pix_gan import ResnetGenerator
 
 def test(images, model, is_reversed, filters, context):
@@ -16,11 +16,13 @@ def test(images, model, is_reversed, filters, context):
 
     for path in images:
         print(path)
-        real = cook_image(load_image(path))
+        raw = load_image(path)
+        raw = raw.astype("float32") / 127.5 - 1.0
+        real = mx.image.resize_short(raw, 256)
         real = real.T.expand_dims(0).as_in_context(context)
         fake = net(real)
         plt.subplot(1, 2, 1)
-        visualize(real[0])
+        visualize(raw.T)
         plt.subplot(1, 2, 2)
         visualize(fake[0])
         plt.show()
