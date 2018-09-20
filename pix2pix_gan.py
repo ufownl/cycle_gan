@@ -56,27 +56,64 @@ class ResnetGenerator(mx.gluon.nn.Block):
         return self._net(x)
 
 
+class SNConv2D(mx.gluon.nn.Block):
+    def __init__(self, channels, kernel_size, strides, padding, in_channels, epsilon=1e-8, **kwargs):
+        super(SNConv2D, self).__init__(**kwargs)
+
+        self._channels = channels
+        self._kernel_size = kernel_size
+        self._strides = strides
+        self._padding = padding
+        self._epsilon = epsilon
+
+        with self.name_scope():
+            self._weight = self.params.get("weight", shape=(channels, in_channels, kernel_size, kernel_size))
+            self._u = self.params.get("u", init=mx.init.Normal(), shape=(1, channels))
+
+    def _spectral_norm(self, ctx):
+        w = self.params.get("weight").data(ctx)
+        w_mat = w.reshape((w.shape[0], -1))
+        v = mx.nd.L2Normalization(mx.nd.dot(self._u.data(ctx), w_mat))
+        u = mx.nd.L2Normalization(mx.nd.dot(v, w_mat.T))
+        self.params.setattr("u", u)
+        sigma = mx.nd.sum(mx.nd.dot(u, w_mat) * v)
+        if sigma == 0:
+            sigma = self._epsilon
+        return w / sigma
+
+    def forward(self, x):
+        return mx.nd.Convolution(
+            data = x,
+            weight = self._spectral_norm(x.context),
+            kernel = (self._kernel_size, self._kernel_size),
+            stride = (self._strides, self._strides),
+            pad = (self._padding, self._padding),
+            num_filter = self._channels,
+            no_bias = True
+        )
+
+
 class Discriminator(mx.gluon.nn.Block):
-    def __init__(self, filters=64, layers=3, **kwargs):
+    def __init__(self, channels=3, filters=64, layers=3, **kwargs):
         super(Discriminator, self).__init__(**kwargs)
 
         with self.name_scope():
             self._net = mx.gluon.nn.Sequential()
             self._net.add(
-                mx.gluon.nn.Conv2D(filters, 4, 2, 1),
+                SNConv2D(filters, 4, 2, 1, channels),
                 mx.gluon.nn.LeakyReLU(0.2)
             )
             for i in range(1, layers):
                 self._net.add(
-                    mx.gluon.nn.Conv2D(min(2 ** i, 8) * filters, 4, 2, 1),
+                    SNConv2D(min(2 ** i, 8) * filters, 4, 2, 1, min(2 ** (i - 1), 8) * filters),
                     mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
             self._net.add(
-                mx.gluon.nn.Conv2D(min(2 ** layers, 8) * filters, 4, 1, 1),
+                SNConv2D(min(2 ** layers, 8) * filters, 4, 1, 1, min(2 ** (layers - 1), 8) * filters),
                 mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                 mx.gluon.nn.LeakyReLU(0.2),
-                mx.gluon.nn.Conv2D(1, 4, 1, 1)
+                SNConv2D(1, 4, 1, 1, min(2 ** layers, 8) * filters)
             )
 
     def forward(self, x):
