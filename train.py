@@ -3,7 +3,7 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
-from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss, GANInitializer
+from pix2pix_gan import ResnetGenerator, Discriminator, GANInitializer
 from image_pool import ImagePool
 
 def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
@@ -17,7 +17,7 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
     dis_b = Discriminator()
     gen_ba = ResnetGenerator()
     dis_a = Discriminator()
-    wgan_loss = WassersteinLoss()
+    bce_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss()
     l1_loss = mx.gluon.loss.L1Loss()
 
     gen_ab_params_file = "model/{}.gen_ab.params".format(dataset)
@@ -50,17 +50,25 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
         dis_a.initialize(GANInitializer(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
-    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "Adam", {
+        "learning_rate": learning_rate,
+        "beta1": 0.5,
+        "clip_gradient": 10.0
     })
-    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "Adam", {
+        "learning_rate": learning_rate,
+        "beta1": 0.5,
+        "clip_gradient": 10.0
     })
-    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "Adam", {
+        "learning_rate": learning_rate,
+        "beta1": 0.5,
+        "clip_gradient": 10.0
     })
-    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "Adam", {
+        "learning_rate": learning_rate,
+        "beta1": 0.5,
+        "clip_gradient": 10.0
     })
 
     if os.path.isfile(gen_ab_state_file):
@@ -96,8 +104,10 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
 
             with mx.autograd.record():
                 real_a_y = dis_a(real_a)
+                real_a_L = bce_loss(real_a_y, mx.nd.ones_like(real_a_y, ctx=context))
                 fake_a_y = dis_a(fake_a_pool.query(fake_a))
-                L = wgan_loss(fake_a_y, real_a_y)
+                fake_a_L = bce_loss(fake_a_y, mx.nd.zeros_like(fake_a_y, ctx=context))
+                L = real_a_L + fake_a_L
                 L.backward()
             trainer_dis_a.step(batch_size)
             dis_a_L = mx.nd.mean(L).asscalar()
@@ -106,8 +116,10 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
 
             with mx.autograd.record():
                 real_b_y = dis_b(real_b)
+                real_b_L = bce_loss(real_b_y, mx.nd.ones_like(real_b_y, ctx=context))
                 fake_b_y = dis_b(fake_b_pool.query(fake_b))
-                L = wgan_loss(fake_b_y, real_b_y)
+                fake_b_L = bce_loss(fake_b_y, mx.nd.zeros_like(fake_b_y, ctx=context))
+                L = real_b_L + fake_b_L
                 L.backward()
             trainer_dis_b.step(batch_size)
             dis_b_L = mx.nd.mean(L).asscalar()
@@ -117,11 +129,12 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
                 fake_a_y = dis_a(fake_a)
+                gan_a_L = bce_loss(fake_a_y, mx.nd.ones_like(fake_a_y, ctx=context))
                 rec_b = gen_ab(fake_a)
                 cyc_b_L = l1_loss(rec_b, real_b)
                 idt_a = gen_ba(real_a)
                 idt_a_L = l1_loss(idt_a, real_a)
-                L = wgan_loss(fake_a_y) + cyc_b_L * lmda_cyc + idt_a_L * lmda_cyc * lmda_idt
+                L = gan_a_L + cyc_b_L * lmda_cyc + idt_a_L * lmda_cyc * lmda_idt
                 L.backward()
             trainer_gen_ba.step(batch_size)
             gen_ba_L = mx.nd.mean(L).asscalar()
@@ -131,11 +144,12 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
             with mx.autograd.record():
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
+                gan_b_L = bce_loss(fake_b_y, mx.nd.ones_like(fake_b_y, ctx=context))
                 rec_a = gen_ba(fake_b)
                 cyc_a_L = l1_loss(rec_a, real_a)
                 idt_b = gen_ab(real_b)
                 idt_b_L = l1_loss(idt_b, real_b)
-                L = wgan_loss(fake_b_y) + cyc_a_L * lmda_cyc + idt_b_L * lmda_cyc * lmda_idt
+                L = gan_b_L + cyc_a_L * lmda_cyc + idt_b_L * lmda_cyc * lmda_idt
                 L.backward()
             trainer_gen_ab.step(batch_size)
             gen_ab_L = mx.nd.mean(L).asscalar()
@@ -168,7 +182,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Start a cycle_gan trainer.")
     parser.add_argument("--dataset", help="set the dataset used by the trainer (default: vangogh2photo)", type=str, default="vangogh2photo")
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
-    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.00005)", type=float, default=0.00005)
+    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.0002)", type=float, default=0.0002)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
     args = parser.parse_args()

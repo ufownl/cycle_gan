@@ -120,17 +120,6 @@ class Discriminator(mx.gluon.nn.Block):
         return self._net(x)
 
 
-class WassersteinLoss(mx.gluon.loss.Loss):
-    def __init__(self, batch_axis=0, **kwargs):
-        super(WassersteinLoss, self).__init__(None, batch_axis, **kwargs)
-
-    def hybrid_forward(self, F, fake_y, real_y=None):
-        if real_y is None:
-            return F.mean(-fake_y, axis=self._batch_axis, exclude=True)
-        else:
-            return F.mean(fake_y - real_y, axis=self._batch_axis, exclude=True)
-
-
 @mx.init.register
 class GANInitializer(mx.init.Initializer):
     def __init__(self, **kwargs):
@@ -153,7 +142,6 @@ if __name__ == "__main__":
     net_g.initialize(GANInitializer())
     net_d = Discriminator()
     net_d.initialize(GANInitializer())
-    loss = WassersteinLoss()
     real_in = mx.nd.zeros((4, 3, 256, 256))
     real_out = mx.nd.ones((4, 3, 256, 256))
     real_y = net_d(real_out)
@@ -162,5 +150,3 @@ if __name__ == "__main__":
     print("fake_out: ", fake_out)
     fake_y = net_d(fake_out)
     print("fake_y: ", fake_y)
-    print("loss_g: ", loss(fake_y))
-    print("loss_d: ", loss(fake_y, real_y))
