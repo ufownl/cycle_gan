@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from dataset import load_image, visualize
 from pix2pix_gan import ResnetGenerator
 
-def test(images, model, is_reversed, filters, context):
+def test(images, model, is_reversed, size, context):
     print("Loading model...", flush=True)
     net = ResnetGenerator()
     if is_reversed:
@@ -18,7 +18,7 @@ def test(images, model, is_reversed, filters, context):
         print(path)
         raw = load_image(path)
         raw = raw.astype("float32") / 127.5 - 1.0
-        real = mx.image.resize_short(raw, 256)
+        real = mx.image.resize_short(raw, size)
         real = real.T.expand_dims(0).as_in_context(context)
         fake = net(real)
         plt.subplot(1, 2, 1)
@@ -46,6 +46,6 @@ if __name__ == "__main__":
         images = args.images,
         model = args.model,
         is_reversed = args.reversed,
-        filters = 64,
+        size = 480,
         context = context
     )
