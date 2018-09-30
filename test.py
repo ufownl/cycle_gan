@@ -1,5 +1,3 @@
-import math
-import random
 import argparse
 import mxnet as mx
 import matplotlib.pyplot as plt
