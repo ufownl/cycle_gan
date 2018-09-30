@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>cycle_gan</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  </head>
+  <body>
+    <div>
+      server: <input type="text" id="server" />
+    </div>
+    <div>
+      <input type="file" id="real" accept="image/*" />
+      <input type="submit" value="upload" onclick="upload()" />
+    </div>
+    <div id="messages" />
+    <script type="text/javascript">
+      let processing = false
+
+      function upload() {
+        let files = document.getElementById("real").files
+        if (files.length === 0) {
+          document.getElementById("messages").innerHTML = "Please select an image file!" + "<br/>"
+          return
+        }
+        document.getElementById("messages").innerHTML = "Uploading and processing..." + "<br/>"
+        if (processing) {
+          return
+        }
+        processing = true
+        let form = new FormData()
+        form.append("file", files[0])
+        let url = encodeURI(document.getElementById("server").value + "/cycle_gan/fake")
+        let xhr = new XMLHttpRequest()
+        xhr.open("POST", url, true)
+        xhr.responseType = "blob"
+        xhr.onload = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              document.getElementById("messages").innerHTML = "<img src=\""+ URL.createObjectURL(xhr.response) + "\" alt=\"fake image\" />"
+            }
+            processing = false
+          }
+        }
+        xhr.onerror = function() {
+          document.getElementById("messages").innerHTML = "ERROR: Failed to call " + "<a href=" + url + ">" + url + "</a>" + "<br/>"
+          processing = false
+        }
+        xhr.send(form)
+      }
+
+      function get_param(name) {
+        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i")
+        var r = window.location.search.substr(1).match(reg)
+        if (r != null) {
+          return decodeURI(r[2])
+        }
+        return null
+      }
+
+      let server = get_param("server")
+      if (server) {
+        document.getElementById("server").value = server
+      } else {
+        document.getElementById("server").value = "http://localhost"
+      }
+    </script>
+  </body>
+</html>
