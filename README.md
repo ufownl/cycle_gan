@@ -1,7 +1,7 @@
 # cycle_gan
 CycleGAN with Spectral Normalization implemented by [MXNET](https://mxnet.incubator.apache.org/).
 
-[Online demo](http://cycle_gan.rangerufo.site/?server=http://97.64.16.92:8080)
+[Online demo](https://ufownl.github.io/cycle_gan?server=https%3A%2F%2Fcrypto0.rangerufo.site)
 
 * Model: vangogh2photo reversed
 
