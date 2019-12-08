@@ -168,7 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", help="set the dataset used by the trainer (default: vangogh2photo)", type=str, default="vangogh2photo")
     parser.add_argument("--start_epoch", help="set the start epoch (default: 0)", type=int, default=0)
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
-    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.0002)", type=float, default=0.0002)
+    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.00005)", type=float, default=0.00005)
     parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
     parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 1.0)", type=float, default=1)
     parser.add_argument("--lmda_idt", help="set the lambda of identity loss (default: 0.5)", type=float, default=0.5)
