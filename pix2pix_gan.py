@@ -22,7 +22,6 @@ class ResBlock(mx.gluon.nn.Block):
 class ResnetGenerator(mx.gluon.nn.Block):
     def __init__(self, channels=3, filters=64, res_blocks=9, downsample_layers=2, **kwargs):
         super(ResnetGenerator, self).__init__(**kwargs)
-
         self._net = mx.gluon.nn.Sequential()
         with self.name_scope():
             self._net.add(
@@ -59,27 +58,14 @@ class ResnetGenerator(mx.gluon.nn.Block):
 class SNConv2D(mx.gluon.nn.Block):
     def __init__(self, channels, kernel_size, strides, padding, in_channels, epsilon=1e-8, **kwargs):
         super(SNConv2D, self).__init__(**kwargs)
-
         self._channels = channels
         self._kernel_size = kernel_size
         self._strides = strides
         self._padding = padding
         self._epsilon = epsilon
-
         with self.name_scope():
             self._weight = self.params.get("weight", shape=(channels, in_channels, kernel_size, kernel_size))
             self._u = self.params.get("u", init=mx.init.Normal(), shape=(1, channels))
-
-    def _spectral_norm(self, ctx):
-        w = self.params.get("weight").data(ctx)
-        w_mat = w.reshape((w.shape[0], -1))
-        v = mx.nd.L2Normalization(mx.nd.dot(self._u.data(ctx), w_mat))
-        u = mx.nd.L2Normalization(mx.nd.dot(v, w_mat.T))
-        self.params.setattr("u", u)
-        sigma = mx.nd.sum(mx.nd.dot(u, w_mat) * v)
-        if sigma == 0:
-            sigma = self._epsilon
-        return w / sigma
 
     def forward(self, x):
         return mx.nd.Convolution(
@@ -92,11 +78,22 @@ class SNConv2D(mx.gluon.nn.Block):
             no_bias = True
         )
 
+    def _spectral_norm(self, ctx):
+        w = self._weight.data(ctx)
+        w_mat = w.reshape((w.shape[0], -1))
+        v = mx.nd.L2Normalization(mx.nd.dot(self._u.data(ctx), w_mat))
+        u = mx.nd.L2Normalization(mx.nd.dot(v, w_mat.T))
+        sigma = mx.nd.sum(mx.nd.dot(u, w_mat) * v)
+        if sigma < self._epsilon:
+            sigma = self._epsilon
+        with mx.autograd.pause():
+            self._u.set_data(u)
+        return w / sigma
+
 
 class Discriminator(mx.gluon.nn.Block):
     def __init__(self, channels=3, filters=64, layers=3, **kwargs):
         super(Discriminator, self).__init__(**kwargs)
-
         with self.name_scope():
             self._net = mx.gluon.nn.Sequential()
             self._net.add(
