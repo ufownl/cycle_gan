@@ -4,7 +4,7 @@ import random
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
-from pix2pix_gan import ResnetGenerator, Discriminator, GANInitializer
+from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss, GANInitializer
 from image_pool import ImagePool
 
 def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
@@ -18,7 +18,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
     dis_b = Discriminator()
     gen_ba = ResnetGenerator()
     dis_a = Discriminator()
-    bce_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss()
+    wgan_loss = WassersteinLoss()
     l1_loss = mx.gluon.loss.L1Loss()
 
     gen_ab_params_file = "model/{}.gen_ab.params".format(dataset)
@@ -51,17 +51,17 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
         dis_a.initialize(GANInitializer(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
-    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "Nadam", {
-        "learning_rate": learning_rate,
+    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "RMSProp", {
+        "learning_rate": learning_rate
     })
-    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "Nadam", {
-        "learning_rate": learning_rate,
+    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "RMSProp", {
+        "learning_rate": learning_rate
     })
-    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "Nadam", {
-        "learning_rate": learning_rate,
+    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "RMSProp", {
+        "learning_rate": learning_rate
     })
-    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "Nadam", {
-        "learning_rate": learning_rate,
+    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "RMSProp", {
+        "learning_rate": learning_rate
     })
 
     if os.path.isfile(gen_ab_state_file):
@@ -99,10 +99,8 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
 
             with mx.autograd.record():
                 real_a_y = dis_a(real_a)
-                real_a_L = bce_loss(real_a_y, mx.nd.ones_like(real_a_y, ctx=context))
                 fake_a_y = dis_a(fake_a_pool.query(fake_a))
-                fake_a_L = bce_loss(fake_a_y, mx.nd.zeros_like(fake_a_y, ctx=context))
-                L = real_a_L + fake_a_L
+                L = wgan_loss(fake_a_y, real_a_y)
                 L.backward()
             trainer_dis_a.step(batch_size)
             dis_a_L = mx.nd.mean(L).asscalar()
@@ -111,10 +109,8 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
 
             with mx.autograd.record():
                 real_b_y = dis_b(real_b)
-                real_b_L = bce_loss(real_b_y, mx.nd.ones_like(real_b_y, ctx=context))
                 fake_b_y = dis_b(fake_b_pool.query(fake_b))
-                fake_b_L = bce_loss(fake_b_y, mx.nd.zeros_like(fake_b_y, ctx=context))
-                L = real_b_L + fake_b_L
+                L = wgan_loss(fake_b_y, real_b_y)
                 L.backward()
             trainer_dis_b.step(batch_size)
             dis_b_L = mx.nd.mean(L).asscalar()
@@ -124,7 +120,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
                 fake_a_y = dis_a(fake_a)
-                gan_a_L = bce_loss(fake_a_y, mx.nd.ones_like(fake_a_y, ctx=context))
+                gan_a_L = wgan_loss(fake_a_y)
                 rec_b = gen_ab(fake_a)
                 cyc_b_L = l1_loss(rec_b, real_b)
                 idt_a = gen_ba(real_a)
@@ -132,7 +128,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
                 gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc + idt_a_L * lmda_cyc * lmda_idt
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
-                gan_b_L = bce_loss(fake_b_y, mx.nd.ones_like(fake_b_y, ctx=context))
+                gan_b_L = wgan_loss(fake_b_y)
                 rec_a = gen_ba(fake_b)
                 cyc_a_L = l1_loss(rec_a, real_a)
                 idt_b = gen_ab(real_b)
