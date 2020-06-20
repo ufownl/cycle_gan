@@ -1,7 +1,7 @@
 import argparse
 import mxnet as mx
 import matplotlib.pyplot as plt
-from dataset import load_image, visualize
+from dataset import load_image, reconstruct_color
 from pix2pix_gan import ResnetGenerator
 
 def test(images, model, is_reversed, size, context):
@@ -15,14 +15,15 @@ def test(images, model, is_reversed, size, context):
     for path in images:
         print(path)
         raw = load_image(path)
-        raw = raw.astype("float32") / 127.5 - 1.0
         real = mx.image.resize_short(raw, size)
-        real = real.T.expand_dims(0).as_in_context(context)
-        fake = net(real)
+        real = mx.nd.image.normalize(mx.nd.image.to_tensor(real), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        fake = net(real.expand_dims(0).as_in_context(context))
         plt.subplot(1, 2, 1)
-        visualize(raw.T)
+        plt.imshow(raw.asnumpy())
+        plt.axis("off")
         plt.subplot(1, 2, 2)
-        visualize(fake[0])
+        plt.imshow(reconstruct_color(fake[0].transpose((1, 2, 0))).asnumpy())
+        plt.axis("off")
         plt.show()
 
 

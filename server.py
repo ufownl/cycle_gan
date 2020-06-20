@@ -5,6 +5,7 @@ import argparse
 import http.server
 import cgi
 import mxnet as mx
+from dataset import reconstruct_color
 from pix2pix_gan import ResnetGenerator
 
 parser = argparse.ArgumentParser(description="Start a test http server.")
@@ -30,12 +31,12 @@ else:
     net.load_parameters("model/{}.gen_ab.params".format(args.model), ctx=context)
 
 def png_encode(img):
-    img = ((img.T + 1.0) * 127.5).astype("uint8")
+    print(img)
     height = img.shape[0]
     width = img.shape[1]
     img = img.reshape((-1, width * 3))
     f = io.BytesIO()
-    w = png.Writer(width, height)
+    w = png.Writer(width, height, greyscale=False)
     w.write(f, img.asnumpy())
     return f.getvalue()
 
@@ -70,11 +71,10 @@ class CycleGANHandler(http.server.BaseHTTPRequestHandler):
                 self.send_error(http.HTTPStatus.BAD_REQUEST)
                 return
 
-            real = mx.image.imdecode(content)
-            real = real.astype("float32") / 127.5 - 1.0
-            real = mx.image.resize_short(real, args.resize)
-            real = real.T.expand_dims(0).as_in_context(context)
-            fake = net(real)
+            raw = mx.image.imdecode(content)
+            real = mx.image.resize_short(raw, args.resize)
+            real = mx.nd.image.normalize(mx.nd.image.to_tensor(real), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+            fake = net(real.expand_dims(0).as_in_context(context))
 
             self.protocal_version = "HTTP/1.1"
             self.send_response(http.HTTPStatus.OK)
@@ -85,7 +85,7 @@ class CycleGANHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Headers", "Keep-Alive,User-Agent,Authorization,Content-Type")
             self.end_headers()
             
-            self.wfile.write(png_encode(fake[0]))
+            self.wfile.write(png_encode(reconstruct_color(fake[0].transpose((1, 2, 0)))))
         else:
             self.send_response(http.HTTPStatus.NOT_FOUND)
             self.end_headers()

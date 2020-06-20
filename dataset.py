@@ -3,17 +3,14 @@ import random
 import zipfile
 import numpy as np
 import mxnet as mx
-import matplotlib.pyplot as plt
+import gluoncv as gcv
+from multiprocessing import cpu_count
+from multiprocessing.dummy import Pool
 
 def load_image(path):
     with open(path, "rb") as f:
         buf = f.read()
     return mx.image.imdecode(buf)
-
-def cook_image(img, fine_size, load_size):
-    img = mx.image.resize_short(img, min(load_size))
-    img, _ = mx.image.random_crop(img, fine_size)
-    return img.astype("float32") / 127.5 - 1.0
 
 def load_dataset(name, category):
     url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/%s.zip" % (name)
@@ -27,19 +24,38 @@ def load_dataset(name, category):
     imgs = [os.path.join(path, f) for path, _, files in os.walk(os.path.join(data_path, name, category)) for f in files]
     return imgs
 
-def get_batches(dataset_a, dataset_b, batch_size, fine_size=(256, 256), load_size=(286, 286)):
-    random.shuffle(dataset_a)
-    random.shuffle(dataset_b)
+def get_batches(dataset_a, dataset_b, batch_size, fine_size=(256, 256), load_size=(286, 286), ctx=mx.cpu()):
     batches = max(len(dataset_a), len(dataset_b)) // batch_size
-    for i in range(batches):
-        start = i * batch_size
-        batch_a = [cook_image(load_image(dataset_a[j%len(dataset_a)]), fine_size, load_size).T.expand_dims(0) for j in range(start, start+batch_size)]
-        batch_b = [cook_image(load_image(dataset_b[j%len(dataset_b)]), fine_size, load_size).T.expand_dims(0) for j in range(start, start+batch_size)]
-        yield mx.nd.concat(*batch_a, dim=0), mx.nd.concat(*batch_b, dim=0)
+    sampler_a = Sampler(dataset_a, fine_size, load_size)
+    sampler_b = Sampler(dataset_b, fine_size, load_size)
+    batchify_fn = gcv.data.batchify.Stack()
+    with Pool(cpu_count() * 2) as p:
+        for i in range(batches):
+            start = i * batch_size
+            samples_a = p.map(sampler_a, range(start, start + batch_size))
+            samples_b = p.map(sampler_b, range(start, start + batch_size))
+            batch_a = batchify_fn(samples_a)
+            batch_b = batchify_fn(samples_b)
+            yield batch_a.as_in_context(ctx), batch_b.as_in_context(ctx)
 
-def visualize(img):
-   plt.imshow(((img.T + 1.0) * 127.5).asnumpy().astype(np.uint8))
-   plt.axis("off")
+
+class Sampler:
+    def __init__(self, dataset, fine_size, load_size):
+        self._dataset = dataset
+        self._fine_size = fine_size
+        self._load_size = load_size
+
+    def __call__(self, idx):
+        img = load_image(self._dataset[idx % len(self._dataset)])
+        img = mx.image.resize_short(img, min(self._load_size), interp=random.randint(0, 4))
+        img, _ = mx.image.random_crop(img, self._fine_size)
+        return mx.nd.image.normalize(mx.nd.image.to_tensor(img), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+
+
+def reconstruct_color(img):
+    mean = mx.nd.array([0.5, 0.5, 0.5])
+    std = mx.nd.array([0.5, 0.5, 0.5])
+    return ((img * std + mean).clip(0.0, 1.0) * 255).astype("uint8")
 
 
 if __name__ == "__main__":
@@ -49,9 +65,12 @@ if __name__ == "__main__":
     batch_a, batch_b = next(get_batches(dataset_a, dataset_b, batch_size))
     print("batch_a preview: ", batch_a)
     print("batch_b preview: ", batch_b)
+    import matplotlib.pyplot as plt
     for i in range(batch_size):
         plt.subplot(batch_size * 2 // 8 + 1, 4, i + 1)
-        visualize(batch_a[i])
+        plt.imshow(reconstruct_color(batch_a[i].transpose((1, 2, 0))).asnumpy())
+        plt.axis("off")
         plt.subplot(batch_size * 2 // 8 + 1, 4, i + batch_size + 1)
-        visualize(batch_b[i])
+        plt.imshow(reconstruct_color(batch_b[i].transpose((1, 2, 0))).asnumpy())
+        plt.axis("off")
     plt.show()

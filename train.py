@@ -1,5 +1,6 @@
 import os
 import time
+import random
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
@@ -90,16 +91,17 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
     for epoch in range(max_epochs):
         ts = time.time()
 
+        random.shuffle(training_set_a)
+        random.shuffle(training_set_b)
+
         training_dis_a_L = 0.0
         training_dis_b_L = 0.0
         training_gen_L = 0.0
         training_batch = 0
 
-        for batch_a, batch_b in get_batches(training_set_a, training_set_b, batch_size):
+        for real_a, real_b in get_batches(training_set_a, training_set_b, batch_size, ctx=context):
             training_batch += 1
             
-            real_a = batch_a.as_in_context(context)
-            real_b = batch_b.as_in_context(context)
             fake_a = gen_ba(real_b)
             fake_b = gen_ab(real_a)
 
