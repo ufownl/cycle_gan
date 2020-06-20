@@ -103,14 +103,12 @@ class Discriminator(mx.gluon.nn.Block):
             for i in range(1, layers):
                 self._net.add(
                     SNConv2D(min(2 ** i, 8) * filters, 4, 2, 1, min(2 ** (i - 1), 8) * filters),
-                    mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
             self._net.add(
                 SNConv2D(min(2 ** layers, 8) * filters, 4, 1, 1, min(2 ** (layers - 1), 8) * filters),
-                mx.gluon.nn.InstanceNorm(gamma_initializer=None),
                 mx.gluon.nn.LeakyReLU(0.2),
-                SNConv2D(1, 4, 1, 1, min(2 ** layers, 8) * filters)
+                mx.gluon.nn.Conv2D(1, 4, 1, 1)
             )
 
     def forward(self, x):
