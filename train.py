@@ -51,25 +51,17 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
         dis_a.initialize(GANInitializer(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
-    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "Adam", {
+    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "Nadam", {
         "learning_rate": learning_rate,
-        "beta1": 0.5,
-        "clip_gradient": 10.0
     })
-    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "Adam", {
+    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "Nadam", {
         "learning_rate": learning_rate,
-        "beta1": 0.5,
-        "clip_gradient": 10.0
     })
-    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "Adam", {
+    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "Nadam", {
         "learning_rate": learning_rate,
-        "beta1": 0.5,
-        "clip_gradient": 10.0
     })
-    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "Adam", {
+    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "Nadam", {
         "learning_rate": learning_rate,
-        "beta1": 0.5,
-        "clip_gradient": 10.0
     })
 
     if os.path.isfile(gen_ab_state_file):
