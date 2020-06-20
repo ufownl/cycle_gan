@@ -49,6 +49,7 @@ class Sampler:
         img = load_image(self._dataset[idx % len(self._dataset)])
         img = mx.image.resize_short(img, min(self._load_size), interp=random.randint(0, 4))
         img, _ = mx.image.random_crop(img, self._fine_size)
+        img, _ = gcv.data.transforms.image.random_flip(img, px=0.5)
         return mx.nd.image.normalize(mx.nd.image.to_tensor(img), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 
 
