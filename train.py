@@ -7,7 +7,7 @@ from dataset import load_dataset, get_batches
 from pix2pix_gan import ResnetGenerator, Discriminator, GANInitializer
 from image_pool import ImagePool
 
-def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
+def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -80,7 +80,7 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
     fake_b_pool = ImagePool(pool_size)
 
     print("Training...", flush=True)
-    for epoch in range(max_epochs):
+    for epoch in range(start_epoch, max_epochs):
         ts = time.time()
 
         random.shuffle(training_set_a)
@@ -170,8 +170,10 @@ def train(dataset, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, po
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Start a cycle_gan trainer.")
     parser.add_argument("--dataset", help="set the dataset used by the trainer (default: vangogh2photo)", type=str, default="vangogh2photo")
+    parser.add_argument("--start_epoch", help="set the start epoch (default: 0)", type=int, default=0)
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
     parser.add_argument("--learning_rate", help="set the learning rate (default: 0.0002)", type=float, default=0.0002)
+    parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
     args = parser.parse_args()
@@ -185,9 +187,10 @@ if __name__ == "__main__":
         try:
             train(
                 dataset = args.dataset,
+                start_epoch = args.start_epoch,
                 max_epochs = args.max_epochs,
                 learning_rate = args.learning_rate,
-                batch_size = 1,
+                batch_size = args.batch_size,
                 lmda_cyc = 10,
                 lmda_idt = 0.5,
                 pool_size = 50,
