@@ -174,6 +174,8 @@ if __name__ == "__main__":
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
     parser.add_argument("--learning_rate", help="set the learning rate (default: 0.0002)", type=float, default=0.0002)
     parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
+    parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 1.0)", type=float, default=1)
+    parser.add_argument("--lmda_idt", help="set the lambda of identity loss (default: 0.5)", type=float, default=0.5)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
     args = parser.parse_args()
@@ -191,8 +193,8 @@ if __name__ == "__main__":
                 max_epochs = args.max_epochs,
                 learning_rate = args.learning_rate,
                 batch_size = args.batch_size,
-                lmda_cyc = 10,
-                lmda_idt = 0.5,
+                lmda_cyc = args.lmda_cyc,
+                lmda_idt = args.lmda_idt,
                 pool_size = 50,
                 context = context
             )
