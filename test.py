@@ -32,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("images", metavar="IMG", help="path of the image file[s]", type=str, nargs="+")
     parser.add_argument("--reversed", help="reverse transformation", action="store_true")
     parser.add_argument("--model", help="set the model used by the tester (default: vangogh2photo)", type=str, default="vangogh2photo")
+    parser.add_argument("--resize", help="set the short size of fake image (default: 256)", type=int, default=256)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
     args = parser.parse_args()
@@ -45,6 +46,6 @@ if __name__ == "__main__":
         images = args.images,
         model = args.model,
         is_reversed = args.reversed,
-        size = 480,
+        size = args.resize,
         context = context
     )

@@ -11,7 +11,7 @@ from pix2pix_gan import ResnetGenerator
 parser = argparse.ArgumentParser(description="Start a test http server.")
 parser.add_argument("--reversed", help="reverse transformation", action="store_true")
 parser.add_argument("--model", help="set the model used by the server (default: vangogh2photo)", type=str, default="vangogh2photo")
-parser.add_argument("--resize", help="set the short size of fake image (default: 480)", type=int, default=480)
+parser.add_argument("--resize", help="set the short size of fake image (default: 256)", type=int, default=256)
 parser.add_argument("--addr", help="set address of cycle_gan server (default: 0.0.0.0)", type=str, default="0.0.0.0")
 parser.add_argument("--port", help="set port of cycle_gan server (default: 80)", type=int, default=80)
 parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
