@@ -123,17 +123,23 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
                 gan_a_L = wgan_loss(fake_a_y)
                 rec_b = gen_ab(fake_a)
                 cyc_b_L = l1_loss(rec_b, real_b)
-                idt_a = gen_ba(real_a)
-                idt_a_L = l1_loss(idt_a, real_a)
-                gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc + idt_a_L * lmda_cyc * lmda_idt
+                if lmda_idt > 0:
+                    idt_a = gen_ba(real_a)
+                    idt_a_L = l1_loss(idt_a, real_a)
+                    gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc + idt_a_L * lmda_cyc * lmda_idt
+                else:
+                    gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
                 gan_b_L = wgan_loss(fake_b_y)
                 rec_a = gen_ba(fake_b)
                 cyc_a_L = l1_loss(rec_a, real_a)
-                idt_b = gen_ab(real_b)
-                idt_b_L = l1_loss(idt_b, real_b)
-                gen_ab_L = gan_b_L + cyc_a_L * lmda_cyc + idt_b_L * lmda_cyc * lmda_idt
+                if lmda_idt > 0:
+                    idt_b = gen_ab(real_b)
+                    idt_b_L = l1_loss(idt_b, real_b)
+                    gen_ab_L = gan_b_L + cyc_a_L * lmda_cyc + idt_b_L * lmda_cyc * lmda_idt
+                else:
+                    gen_ab_L = gan_b_L + cyc_a_L * lmda_cyc
                 L = gen_ba_L + gen_ab_L
                 L.backward()
             trainer_gen_ba.step(batch_size)
@@ -170,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
     parser.add_argument("--learning_rate", help="set the learning rate (default: 0.00005)", type=float, default=0.00005)
     parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
-    parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 1.0)", type=float, default=1)
+    parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 1.0)", type=float, default=1.0)
     parser.add_argument("--lmda_idt", help="set the lambda of identity loss (default: 0.5)", type=float, default=0.5)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
