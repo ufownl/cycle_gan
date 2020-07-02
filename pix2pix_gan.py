@@ -92,7 +92,7 @@ class SNConv2D(mx.gluon.nn.Block):
 
 
 class Discriminator(mx.gluon.nn.Block):
-    def __init__(self, channels=3, filters=64, layers=3, **kwargs):
+    def __init__(self, channels=3, filters=64, layers=5, **kwargs):
         super(Discriminator, self).__init__(**kwargs)
         with self.name_scope():
             self._net = mx.gluon.nn.Sequential()
@@ -106,9 +106,9 @@ class Discriminator(mx.gluon.nn.Block):
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
             self._net.add(
-                SNConv2D(min(2 ** layers, 8) * filters, 4, 1, 1, min(2 ** (layers - 1), 8) * filters),
-                mx.gluon.nn.LeakyReLU(0.2),
-                mx.gluon.nn.Conv2D(1, 4, 1, 1)
+                SNConv2D(1, 3, 1, 1, min(2 ** (layers - 1), 8) * filters),
+                mx.gluon.nn.GlobalAvgPool2D(),
+                mx.gluon.nn.Flatten()
             )
 
     def forward(self, x):
