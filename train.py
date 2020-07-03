@@ -4,7 +4,7 @@ import random
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
-from pix2pix_gan import ResnetGenerator, Discriminator, WassersteinLoss, GANInitializer
+from pix2pix_gan import ResnetGenerator, Discriminator, GANInitializer
 from image_pool import ImagePool
 
 def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
@@ -18,7 +18,6 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
     dis_b = Discriminator()
     gen_ba = ResnetGenerator()
     dis_a = Discriminator()
-    wgan_loss = WassersteinLoss()
     l1_loss = mx.gluon.loss.L1Loss()
 
     gen_ab_params_file = "model/{}.gen_ab.params".format(dataset)
@@ -100,7 +99,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
             with mx.autograd.record():
                 real_a_y = dis_a(real_a)
                 fake_a_y = dis_a(fake_a_pool.query(fake_a))
-                L = wgan_loss(fake_a_y, real_a_y)
+                L = fake_a_y - real_a_y
                 L.backward()
             trainer_dis_a.step(batch_size)
             dis_a_L = mx.nd.mean(L).asscalar()
@@ -110,7 +109,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
             with mx.autograd.record():
                 real_b_y = dis_b(real_b)
                 fake_b_y = dis_b(fake_b_pool.query(fake_b))
-                L = wgan_loss(fake_b_y, real_b_y)
+                L = fake_b_y - real_b_y
                 L.backward()
             trainer_dis_b.step(batch_size)
             dis_b_L = mx.nd.mean(L).asscalar()
@@ -120,7 +119,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
                 fake_a_y = dis_a(fake_a)
-                gan_a_L = wgan_loss(fake_a_y)
+                gan_a_L = -fake_a_y
                 rec_b = gen_ab(fake_a)
                 cyc_b_L = l1_loss(rec_b, real_b)
                 if lmda_idt > 0:
@@ -131,7 +130,7 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
                     gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
-                gan_b_L = wgan_loss(fake_b_y)
+                gan_b_L = -fake_b_y
                 rec_a = gen_ba(fake_b)
                 cyc_a_L = l1_loss(rec_a, real_a)
                 if lmda_idt > 0:
