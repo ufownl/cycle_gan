@@ -7,7 +7,7 @@ from dataset import load_dataset, get_batches
 from pix2pix_gan import ResnetGenerator, Discriminator, GANInitializer
 from image_pool import ImagePool
 
-def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc, lmda_idt, pool_size, context):
+def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lmda_idt, pool_size, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -49,18 +49,19 @@ def train(dataset, start_epoch, max_epochs, learning_rate, batch_size, lmda_cyc,
     else:
         dis_a.initialize(GANInitializer(), ctx=context)
 
-    print("Learning rate:", learning_rate, flush=True)
+    print("Learning rate of discriminator:", lr_d, flush=True)
+    print("Learning rate of generator:", lr_g, flush=True)
     trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+        "learning_rate": lr_g
     })
     trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+        "learning_rate": lr_d
     })
     trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+        "learning_rate": lr_g
     })
     trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+        "learning_rate": lr_d
     })
 
     if os.path.isfile(gen_ab_state_file):
@@ -173,7 +174,8 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", help="set the dataset used by the trainer (default: vangogh2photo)", type=str, default="vangogh2photo")
     parser.add_argument("--start_epoch", help="set the start epoch (default: 0)", type=int, default=0)
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
-    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.00005)", type=float, default=0.00005)
+    parser.add_argument("--lr_d", help="set the learning rate of discriminator (default: 0.00015)", type=float, default=0.00015)
+    parser.add_argument("--lr_g", help="set the learning rate of generator (default: 0.00005)", type=float, default=0.00005)
     parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
     parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 1.0)", type=float, default=1.0)
     parser.add_argument("--lmda_idt", help="set the lambda of identity loss (default: 0.5)", type=float, default=0.5)
@@ -192,7 +194,8 @@ if __name__ == "__main__":
                 dataset = args.dataset,
                 start_epoch = args.start_epoch,
                 max_epochs = args.max_epochs,
-                learning_rate = args.learning_rate,
+                lr_d = args.lr_d,
+                lr_g = args.lr_g,
                 batch_size = args.batch_size,
                 lmda_cyc = args.lmda_cyc,
                 lmda_idt = args.lmda_idt,
