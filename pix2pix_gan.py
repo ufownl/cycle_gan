@@ -1,60 +1,5 @@
 import mxnet as mx
 
-class ResBlock(mx.gluon.nn.Block):
-    def __init__(self, filters, **kwargs):
-        super(ResBlock, self).__init__(**kwargs)
-        self._net = mx.gluon.nn.Sequential()
-        with self.name_scope():
-            self._net.add(
-                mx.gluon.nn.ReflectionPad2D(1),
-                mx.gluon.nn.Conv2D(filters, 3),
-                mx.gluon.nn.InstanceNorm(gamma_initializer=None),
-                mx.gluon.nn.Activation("relu"),
-                mx.gluon.nn.ReflectionPad2D(1),
-                mx.gluon.nn.Conv2D(filters, 3),
-                mx.gluon.nn.InstanceNorm(gamma_initializer=None)
-            )
-
-    def forward(self, x):
-        return self._net(x) + x
-
-
-class ResnetGenerator(mx.gluon.nn.Block):
-    def __init__(self, channels=3, filters=64, res_blocks=9, downsample_layers=2, **kwargs):
-        super(ResnetGenerator, self).__init__(**kwargs)
-        self._net = mx.gluon.nn.Sequential()
-        with self.name_scope():
-            self._net.add(
-                mx.gluon.nn.ReflectionPad2D(3),
-                mx.gluon.nn.Conv2D(filters, 7),
-                mx.gluon.nn.InstanceNorm(gamma_initializer=None),
-                mx.gluon.nn.Activation("relu")
-            )
-            for i in range(downsample_layers):
-                self._net.add(
-                    mx.gluon.nn.Conv2D(2 ** (i + 1) * filters, 3, 2, 1),
-                    mx.gluon.nn.InstanceNorm(gamma_initializer=None),
-                    mx.gluon.nn.Activation("relu")
-                )
-            res_filters = 2 ** downsample_layers * filters
-            for i in range(res_blocks):
-                self._net.add(ResBlock(res_filters))
-            for i in range(downsample_layers):
-                self._net.add(
-                    mx.gluon.nn.Conv2DTranspose(2 ** (downsample_layers - i - 1) * filters, 3, 2, 1, 1),
-                    mx.gluon.nn.InstanceNorm(gamma_initializer=None),
-                    mx.gluon.nn.Activation("relu")
-                )
-            self._net.add(
-                mx.gluon.nn.ReflectionPad2D(3),
-                mx.gluon.nn.Conv2D(channels, 7),
-                mx.gluon.nn.Activation("tanh")
-            )
-
-    def forward(self, x):
-        return self._net(x)
-
-
 class SNConv2D(mx.gluon.nn.Block):
     def __init__(self, channels, kernel_size, strides, padding, in_channels, epsilon=1e-8, **kwargs):
         super(SNConv2D, self).__init__(**kwargs)
@@ -89,6 +34,66 @@ class SNConv2D(mx.gluon.nn.Block):
         with mx.autograd.pause():
             self._u.set_data(u)
         return w / sigma
+
+
+class ResBlock(mx.gluon.nn.Block):
+    def __init__(self, filters, **kwargs):
+        super(ResBlock, self).__init__(**kwargs)
+        self._net = mx.gluon.nn.Sequential()
+        with self.name_scope():
+            self._net.add(
+                mx.gluon.nn.ReflectionPad2D(1),
+                SNConv2D(filters, 3, 1, 0, filters),
+                mx.gluon.nn.Activation("relu"),
+                mx.gluon.nn.ReflectionPad2D(1),
+                SNConv2D(filters, 3, 1, 0, filters)
+            )
+
+    def forward(self, x):
+        return self._net(x) + x
+
+
+class UpSampling(mx.gluon.nn.Block):
+    def __init__(self, scale=2, **kwargs):
+        super(UpSampling, self).__init__(**kwargs)
+        self._scale = scale
+
+    def forward(self, x):
+        return mx.nd.UpSampling(x, scale=self._scale, sample_type='nearest')
+
+
+class ResnetGenerator(mx.gluon.nn.Block):
+    def __init__(self, channels=3, filters=64, res_blocks=9, downsample_layers=2, **kwargs):
+        super(ResnetGenerator, self).__init__(**kwargs)
+        self._net = mx.gluon.nn.Sequential()
+        with self.name_scope():
+            self._net.add(
+                mx.gluon.nn.ReflectionPad2D(3),
+                SNConv2D(filters, 7, 1, 0, channels),
+                mx.gluon.nn.Activation("relu")
+            )
+            for i in range(downsample_layers):
+                self._net.add(
+                    SNConv2D(2 ** (i + 1) * filters, 3, 2, 1, 2 ** i * filters),
+                    mx.gluon.nn.Activation("relu")
+                )
+            res_filters = 2 ** downsample_layers * filters
+            for i in range(res_blocks):
+                self._net.add(ResBlock(res_filters))
+            for i in range(downsample_layers):
+                self._net.add(
+                    UpSampling(),
+                    SNConv2D(2 ** (downsample_layers - i - 1) * filters, 3, 1, 1, 2 ** (downsample_layers - i) * filters),
+                    mx.gluon.nn.Activation("relu")
+                )
+            self._net.add(
+                mx.gluon.nn.ReflectionPad2D(3),
+                SNConv2D(channels, 7, 1, 0, filters),
+                mx.gluon.nn.Activation("tanh")
+            )
+
+    def forward(self, x):
+        return self._net(x)
 
 
 class Discriminator(mx.gluon.nn.Block):
