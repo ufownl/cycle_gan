@@ -177,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr_d", help="set the learning rate of discriminator (default: 0.00015)", type=float, default=0.00015)
     parser.add_argument("--lr_g", help="set the learning rate of generator (default: 0.00005)", type=float, default=0.00005)
     parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
-    parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 1.0)", type=float, default=1.0)
+    parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 10.0)", type=float, default=10.0)
     parser.add_argument("--lmda_idt", help="set the lambda of identity loss (default: 0.5)", type=float, default=0.5)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
