@@ -2,22 +2,35 @@ import argparse
 import mxnet as mx
 import matplotlib.pyplot as plt
 from dataset import load_image, reconstruct_color
-from pix2pix_gan import ResnetGenerator
+from pix2pix_gan import ResnetGenerator, Discriminator
 
 def test(images, model, is_reversed, size, context):
-    print("Loading model...", flush=True)
-    net = ResnetGenerator()
+    print("Loading models...", flush=True)
+    gen = ResnetGenerator()
     if is_reversed:
-        net.load_parameters("model/{}.gen_ba.params".format(model), ctx=context)
+        gen.load_parameters("model/{}.gen_ba.params".format(model), ctx=context)
     else:
-        net.load_parameters("model/{}.gen_ab.params".format(model), ctx=context)
+        gen.load_parameters("model/{}.gen_ab.params".format(model), ctx=context)
+    dis_a = Discriminator()
+    dis_a.load_parameters("model/{}.dis_a.params".format(model), ctx=context)
+    dis_b = Discriminator()
+    dis_b.load_parameters("model/{}.dis_b.params".format(model), ctx=context)
 
     for path in images:
         print(path)
         raw = load_image(path)
         real = mx.image.resize_short(raw, size)
         real = mx.nd.image.normalize(mx.nd.image.to_tensor(real), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
-        fake = net(real.expand_dims(0).as_in_context(context))
+        real = real.expand_dims(0).as_in_context(context)
+        real_a_y = dis_a(real)
+        real_b_y = dis_b(real)
+        print("Real score A:", real_a_y[0].asscalar())
+        print("Real score B:", real_b_y[0].asscalar())
+        fake = gen(real)
+        fake_a_y = dis_a(fake)
+        fake_b_y = dis_b(fake)
+        print("Fake score A:", fake_a_y[0].asscalar())
+        print("Fake score B:", fake_b_y[0].asscalar())
         plt.subplot(1, 2, 1)
         plt.imshow(raw.asnumpy())
         plt.axis("off")
