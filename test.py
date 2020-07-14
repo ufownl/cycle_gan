@@ -6,15 +6,14 @@ from pix2pix_gan import ResnetGenerator, Discriminator
 
 def test(images, model, is_reversed, size, context):
     print("Loading models...", flush=True)
-    gen = ResnetGenerator()
-    if is_reversed:
-        gen.load_parameters("model/{}.gen_ba.params".format(model), ctx=context)
-    else:
-        gen.load_parameters("model/{}.gen_ab.params".format(model), ctx=context)
     dis_a = Discriminator()
     dis_a.load_parameters("model/{}.dis_a.params".format(model), ctx=context)
     dis_b = Discriminator()
     dis_b.load_parameters("model/{}.dis_b.params".format(model), ctx=context)
+    gen_ab = ResnetGenerator()
+    gen_ab.load_parameters("model/{}.gen_ab.params".format(model), ctx=context)
+    gen_ba = ResnetGenerator()
+    gen_ba.load_parameters("model/{}.gen_ba.params".format(model), ctx=context)
 
     for path in images:
         print(path)
@@ -24,18 +23,26 @@ def test(images, model, is_reversed, size, context):
         real = real.expand_dims(0).as_in_context(context)
         real_a_y = dis_a(real)
         real_b_y = dis_b(real)
-        print("Real score A:", real_a_y[0].asscalar())
-        print("Real score B:", real_b_y[0].asscalar())
-        fake = gen(real)
+        if is_reversed:
+            fake = gen_ba(real)
+            rec = gen_ab(fake)
+        else:
+            fake = gen_ab(real)
+            rec = gen_ba(fake)
         fake_a_y = dis_a(fake)
         fake_b_y = dis_b(fake)
+        print("Real score A:", real_a_y[0].asscalar())
+        print("Real score B:", real_b_y[0].asscalar())
         print("Fake score A:", fake_a_y[0].asscalar())
         print("Fake score B:", fake_b_y[0].asscalar())
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         plt.imshow(raw.asnumpy())
         plt.axis("off")
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 3, 2)
         plt.imshow(reconstruct_color(fake[0].transpose((1, 2, 0))).asnumpy())
+        plt.axis("off")
+        plt.subplot(1, 3, 3)
+        plt.imshow(reconstruct_color(rec[0].transpose((1, 2, 0))).asnumpy())
         plt.axis("off")
         plt.show()
 
