@@ -54,8 +54,8 @@ class Sampler:
 
 
 def reconstruct_color(img):
-    mean = mx.nd.array([0.5, 0.5, 0.5])
-    std = mx.nd.array([0.5, 0.5, 0.5])
+    mean = mx.nd.array([0.5, 0.5, 0.5], ctx=img.context)
+    std = mx.nd.array([0.5, 0.5, 0.5], ctx=img.context)
     return ((img * std + mean).clip(0.0, 1.0) * 255).astype("uint8")
 
 
