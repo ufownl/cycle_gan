@@ -18,6 +18,7 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
     dis_b = Discriminator()
     gen_ba = ResnetGenerator()
     dis_a = Discriminator()
+    bce_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss()
     l1_loss = mx.gluon.loss.L1Loss()
 
     gen_ab_params_file = "model/{}.gen_ab.params".format(dataset)
@@ -51,17 +52,21 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
 
     print("Learning rate of discriminator:", lr_d, flush=True)
     print("Learning rate of generator:", lr_g, flush=True)
-    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "RMSProp", {
-        "learning_rate": lr_g
+    trainer_gen_ab = mx.gluon.Trainer(gen_ab.collect_params(), "Nadam", {
+        "learning_rate": lr_g,
+        "beta1": 0.5
     })
-    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "RMSProp", {
-        "learning_rate": lr_d
+    trainer_dis_b = mx.gluon.Trainer(dis_b.collect_params(), "Nadam", {
+        "learning_rate": lr_d,
+        "beta1": 0.5
     })
-    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "RMSProp", {
-        "learning_rate": lr_g
+    trainer_gen_ba = mx.gluon.Trainer(gen_ba.collect_params(), "Nadam", {
+        "learning_rate": lr_g,
+        "beta1": 0.5
     })
-    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "RMSProp", {
-        "learning_rate": lr_d
+    trainer_dis_a = mx.gluon.Trainer(dis_a.collect_params(), "Nadam", {
+        "learning_rate": lr_d,
+        "beta1": 0.5
     })
 
     if os.path.isfile(gen_ab_state_file):
@@ -75,6 +80,9 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
 
     if os.path.isfile(dis_a_state_file):
         trainer_dis_a.load_states(dis_a_state_file)
+
+    real_flag = mx.nd.ones((batch_size, 1), ctx=context)
+    fake_flag = mx.nd.zeros((batch_size, 1), ctx=context)
 
     fake_a_pool = ImagePool(pool_size)
     fake_b_pool = ImagePool(pool_size)
@@ -99,8 +107,10 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
 
             with mx.autograd.record():
                 real_a_y = dis_a(real_a)
+                real_a_L = bce_loss(real_a_y, real_flag)
                 fake_a_y = dis_a(fake_a_pool.query(fake_a))
-                L = fake_a_y - real_a_y
+                fake_a_L = bce_loss(fake_a_y, fake_flag)
+                L = real_a_L + fake_a_L
                 L.backward()
             trainer_dis_a.step(batch_size)
             dis_a_L = mx.nd.mean(L).asscalar()
@@ -109,8 +119,10 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
 
             with mx.autograd.record():
                 real_b_y = dis_b(real_b)
+                real_b_L = bce_loss(real_b_y, real_flag)
                 fake_b_y = dis_b(fake_b_pool.query(fake_b))
-                L = fake_b_y - real_b_y
+                fake_b_L = bce_loss(fake_b_y, fake_flag)
+                L = real_b_L + fake_b_L
                 L.backward()
             trainer_dis_b.step(batch_size)
             dis_b_L = mx.nd.mean(L).asscalar()
@@ -120,7 +132,7 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
                 fake_a_y = dis_a(fake_a)
-                gan_a_L = -fake_a_y
+                gan_a_L = bce_loss(fake_a_y, real_flag)
                 rec_b = gen_ab(fake_a)
                 cyc_b_L = l1_loss(rec_b, real_b)
                 if lmda_idt > 0:
@@ -131,7 +143,7 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
                     gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
-                gan_b_L = -fake_b_y
+                gan_b_L = bce_loss(fake_b_y, real_flag)
                 rec_a = gen_ba(fake_b)
                 cyc_a_L = l1_loss(rec_a, real_a)
                 if lmda_idt > 0:
@@ -174,8 +186,8 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", help="set the dataset used by the trainer (default: vangogh2photo)", type=str, default="vangogh2photo")
     parser.add_argument("--start_epoch", help="set the start epoch (default: 0)", type=int, default=0)
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
-    parser.add_argument("--lr_d", help="set the learning rate of discriminator (default: 0.00015)", type=float, default=0.00015)
-    parser.add_argument("--lr_g", help="set the learning rate of generator (default: 0.00005)", type=float, default=0.00005)
+    parser.add_argument("--lr_d", help="set the learning rate of discriminator (default: 0.0003)", type=float, default=0.0003)
+    parser.add_argument("--lr_g", help="set the learning rate of generator (default: 0.0001)", type=float, default=0.0001)
     parser.add_argument("--batch_size", help="set the batch size (default: 32)", type=int, default=32)
     parser.add_argument("--lmda_cyc", help="set the lambda of cycle loss (default: 10.0)", type=float, default=10.0)
     parser.add_argument("--lmda_idt", help="set the lambda of identity loss (default: 0.5)", type=float, default=0.5)

@@ -150,5 +150,3 @@ if __name__ == "__main__":
     print("fake_out: ", fake_out)
     fake_y = net_d(fake_out)
     print("fake_y: ", fake_y)
-    print("loss_g: ", -fake_y)
-    print("loss_d: ", fake_y - real_y)
