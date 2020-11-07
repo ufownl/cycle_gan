@@ -111,9 +111,7 @@ class Discriminator(mx.gluon.nn.Block):
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
             self._net.add(
-                SNConv2D(1, 3, 1, 1, min(2 ** (layers - 1), 8) * filters),
-                mx.gluon.nn.GlobalAvgPool2D(),
-                mx.gluon.nn.Flatten()
+                SNConv2D(1, 5, 1, 2, min(2 ** (layers - 1), 8) * filters)
             )
 
     def forward(self, x):

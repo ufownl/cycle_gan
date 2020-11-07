@@ -81,9 +81,6 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
     if os.path.isfile(dis_a_state_file):
         trainer_dis_a.load_states(dis_a_state_file)
 
-    real_flag = mx.nd.ones((batch_size, 1), ctx=context)
-    fake_flag = mx.nd.zeros((batch_size, 1), ctx=context)
-
     fake_a_pool = ImagePool(pool_size)
     fake_b_pool = ImagePool(pool_size)
 
@@ -107,9 +104,9 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
 
             with mx.autograd.record():
                 real_a_y = dis_a(real_a)
-                real_a_L = bce_loss(real_a_y, real_flag)
+                real_a_L = bce_loss(real_a_y, mx.nd.ones_like(real_a_y, ctx=context))
                 fake_a_y = dis_a(fake_a_pool.query(fake_a))
-                fake_a_L = bce_loss(fake_a_y, fake_flag)
+                fake_a_L = bce_loss(fake_a_y, mx.nd.zeros_like(fake_a_y, ctx=context))
                 L = real_a_L + fake_a_L
                 L.backward()
             trainer_dis_a.step(batch_size)
@@ -119,9 +116,9 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
 
             with mx.autograd.record():
                 real_b_y = dis_b(real_b)
-                real_b_L = bce_loss(real_b_y, real_flag)
+                real_b_L = bce_loss(real_b_y, mx.nd.ones_like(real_b_y, ctx=context))
                 fake_b_y = dis_b(fake_b_pool.query(fake_b))
-                fake_b_L = bce_loss(fake_b_y, fake_flag)
+                fake_b_L = bce_loss(fake_b_y, mx.nd.zeros_like(fake_b_y, ctx=context))
                 L = real_b_L + fake_b_L
                 L.backward()
             trainer_dis_b.step(batch_size)
@@ -132,7 +129,7 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
             with mx.autograd.record():
                 fake_a = gen_ba(real_b)
                 fake_a_y = dis_a(fake_a)
-                gan_a_L = bce_loss(fake_a_y, real_flag)
+                gan_a_L = bce_loss(fake_a_y, mx.nd.ones_like(fake_a_y, ctx=context))
                 rec_b = gen_ab(fake_a)
                 cyc_b_L = l1_loss(rec_b, real_b)
                 if lmda_idt > 0:
@@ -143,7 +140,7 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
                     gen_ba_L = gan_a_L + cyc_b_L * lmda_cyc
                 fake_b = gen_ab(real_a)
                 fake_b_y = dis_b(fake_b)
-                gan_b_L = bce_loss(fake_b_y, real_flag)
+                gan_b_L = bce_loss(fake_b_y, mx.nd.ones_like(fake_b_y, ctx=context))
                 rec_a = gen_ba(fake_b)
                 cyc_a_L = l1_loss(rec_a, real_a)
                 if lmda_idt > 0:
