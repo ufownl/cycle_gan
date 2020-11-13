@@ -106,8 +106,6 @@ venv.bak/
 # check-point files
 *.ckpt
 *.state
-*.dis_a.params
-*.dis_b.params
 
 # output and backup files
 *.out
