@@ -62,60 +62,83 @@ class UpSampling(mx.gluon.nn.Block):
         return mx.nd.UpSampling(x, scale=self._scale, sample_type='nearest')
 
 
+class ClassActivationMapping(mx.gluon.nn.Block):
+    def __init__(self, units, activation, **kwargs):
+        super(ClassActivationMapping, self).__init__(**kwargs)
+        self._act = activation
+        with self.name_scope():
+            self._gap = mx.gluon.nn.GlobalAvgPool2D()
+            self._gap_linear = mx.gluon.nn.Conv2D(units, 1, use_bias=False)
+            self._gmp = mx.gluon.nn.GlobalMaxPool2D()
+            self._gmp_linear = mx.gluon.nn.Conv2D(units, 1, use_bias=False)
+            self._out = mx.gluon.nn.Conv2D(units, 1)
+
+    def forward(self, x):
+        gap_y = self._gap_linear(self._gap(x))
+        gap_m = self._gap_linear(x)
+        gmp_y = self._gmp_linear(self._gmp(x))
+        gmp_m = self._gmp_linear(x)
+        return self._act(self._out(mx.nd.concat(gap_m, gmp_m, dim=1))), mx.nd.concat(gap_y, gmp_y, dim=1)
+
+
 class ResnetGenerator(mx.gluon.nn.Block):
     def __init__(self, channels=3, filters=64, res_blocks=9, downsample_layers=2, **kwargs):
         super(ResnetGenerator, self).__init__(**kwargs)
-        self._net = mx.gluon.nn.Sequential()
+        self._enc = mx.gluon.nn.Sequential()
+        self._dec = mx.gluon.nn.Sequential()
         with self.name_scope():
-            self._net.add(
+            self._enc.add(
                 mx.gluon.nn.ReflectionPad2D(3),
                 SNConv2D(filters, 7, 1, 0, channels),
                 mx.gluon.nn.Activation("relu")
             )
             for i in range(downsample_layers):
-                self._net.add(
+                self._enc.add(
                     SNConv2D(2 ** (i + 1) * filters, 3, 2, 1, 2 ** i * filters),
                     mx.gluon.nn.Activation("relu")
                 )
-            res_filters = 2 ** downsample_layers * filters
+            units = 2 ** downsample_layers * filters
             for i in range(res_blocks):
-                self._net.add(ResBlock(res_filters))
+                self._enc.add(ResBlock(units))
+            self._cam = ClassActivationMapping(units, mx.gluon.nn.Activation("relu"))
             for i in range(downsample_layers):
-                self._net.add(
+                self._dec.add(
                     UpSampling(),
                     SNConv2D(2 ** (downsample_layers - i - 1) * filters, 3, 1, 1, 2 ** (downsample_layers - i) * filters),
                     mx.gluon.nn.Activation("relu")
                 )
-            self._net.add(
+            self._dec.add(
                 mx.gluon.nn.ReflectionPad2D(3),
                 SNConv2D(channels, 7, 1, 0, filters),
                 mx.gluon.nn.Activation("tanh")
             )
 
     def forward(self, x):
-        return self._net(x)
+        x, y = self._cam(self._enc(x))
+        return self._dec(x), y
 
 
 class Discriminator(mx.gluon.nn.Block):
     def __init__(self, channels=3, filters=64, layers=5, **kwargs):
         super(Discriminator, self).__init__(**kwargs)
+        self._enc = mx.gluon.nn.Sequential()
         with self.name_scope():
-            self._net = mx.gluon.nn.Sequential()
-            self._net.add(
+            self._enc.add(
                 SNConv2D(filters, 4, 2, 1, channels),
                 mx.gluon.nn.LeakyReLU(0.2)
             )
             for i in range(1, layers):
-                self._net.add(
+                self._enc.add(
                     SNConv2D(min(2 ** i, 8) * filters, 4, 2, 1, min(2 ** (i - 1), 8) * filters),
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
-            self._net.add(
-                SNConv2D(1, 5, 1, 2, min(2 ** (layers - 1), 8) * filters)
-            )
+            units = min(2 ** (layers - 1), 8) * filters
+            self._cam = ClassActivationMapping(units, mx.gluon.nn.LeakyReLU(0.2))
+            self._dec = SNConv2D(1, 5, 1, 2, units)
 
     def forward(self, x):
-        return self._net(x)
+        x, y = self._cam(self._enc(x))
+        return self._dec(x), y
 
 
 @mx.init.register
@@ -142,9 +165,12 @@ if __name__ == "__main__":
     net_d.initialize(GANInitializer())
     real_in = mx.nd.zeros((4, 3, 256, 256))
     real_out = mx.nd.ones((4, 3, 256, 256))
-    real_y = net_d(real_out)
+    real_y, real_cam_y = net_d(real_out)
     print("real_y: ", mx.nd.sigmoid(real_y))
-    fake_out = net_g(real_in)
+    print("real_cam_y: ", mx.nd.sigmoid(real_cam_y))
+    fake_out, gen_cam_y = net_g(real_in)
     print("fake_out: ", fake_out)
-    fake_y = net_d(fake_out)
+    print("gen_cam_y: ", mx.nd.sigmoid(gen_cam_y))
+    fake_y, fake_cam_y = net_d(fake_out)
     print("fake_y: ", mx.nd.sigmoid(fake_y))
+    print("fake_cam_y: ", mx.nd.sigmoid(fake_cam_y))

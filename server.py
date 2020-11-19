@@ -74,7 +74,7 @@ class CycleGANHandler(http.server.BaseHTTPRequestHandler):
             raw = mx.image.imdecode(content)
             real = mx.image.resize_short(raw, args.resize)
             real = mx.nd.image.normalize(mx.nd.image.to_tensor(real), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
-            fake = net(real.expand_dims(0).as_in_context(context))
+            fake, _ = net(real.expand_dims(0).as_in_context(context))
 
             self.protocal_version = "HTTP/1.1"
             self.send_response(http.HTTPStatus.OK)
