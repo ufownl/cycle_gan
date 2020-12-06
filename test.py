@@ -2,13 +2,13 @@ import argparse
 import mxnet as mx
 import matplotlib.pyplot as plt
 from dataset import load_image, reconstruct_color
-from pix2pix_gan import ResnetGenerator, Discriminator
+from pix2pix_gan import ResnetGenerator, PatchDiscriminator
 
 def test(images, model, is_reversed, size, context):
     print("Loading models...", flush=True)
-    dis_a = Discriminator()
+    dis_a = PatchDiscriminator()
     dis_a.load_parameters("model/{}.dis_a.params".format(model), ctx=context)
-    dis_b = Discriminator()
+    dis_b = PatchDiscriminator()
     dis_b.load_parameters("model/{}.dis_b.params".format(model), ctx=context)
     gen_ab = ResnetGenerator()
     gen_ab.load_parameters("model/{}.gen_ab.params".format(model), ctx=context)

@@ -118,9 +118,9 @@ class ResnetGenerator(mx.gluon.nn.Block):
         return self._dec(x), y
 
 
-class Discriminator(mx.gluon.nn.Block):
-    def __init__(self, channels=3, filters=64, layers=5, **kwargs):
-        super(Discriminator, self).__init__(**kwargs)
+class PatchDiscriminator(mx.gluon.nn.Block):
+    def __init__(self, channels=3, filters=64, layers=3, **kwargs):
+        super(PatchDiscriminator, self).__init__(**kwargs)
         self._enc = mx.gluon.nn.Sequential()
         with self.name_scope():
             self._enc.add(
@@ -132,9 +132,13 @@ class Discriminator(mx.gluon.nn.Block):
                     SNConv2D(min(2 ** i, 8) * filters, 4, 2, 1, min(2 ** (i - 1), 8) * filters),
                     mx.gluon.nn.LeakyReLU(0.2)
                 )
-            units = min(2 ** (layers - 1), 8) * filters
+            units = min(2 ** layers, 8) * filters
+            self._enc.add(
+                SNConv2D(units, 4, 1, 1, min(2 ** (layers - 1), 8) * filters),
+                mx.gluon.nn.LeakyReLU(0.2)
+            )
             self._cam = ClassActivationMapping(units, mx.gluon.nn.LeakyReLU(0.2))
-            self._dec = SNConv2D(1, 5, 1, 2, units)
+            self._dec = SNConv2D(1, 4, 1, 1, units)
 
     def forward(self, x):
         x, y = self._cam(self._enc(x))
@@ -161,7 +165,7 @@ class GANInitializer(mx.init.Initializer):
 if __name__ == "__main__":
     net_g = ResnetGenerator()
     net_g.initialize(GANInitializer())
-    net_d = Discriminator()
+    net_d = PatchDiscriminator()
     net_d.initialize(GANInitializer())
     real_in = mx.nd.zeros((4, 3, 256, 256))
     real_out = mx.nd.ones((4, 3, 256, 256))

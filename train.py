@@ -4,7 +4,7 @@ import random
 import argparse
 import mxnet as mx
 from dataset import load_dataset, get_batches
-from pix2pix_gan import ResnetGenerator, Discriminator, GANInitializer
+from pix2pix_gan import ResnetGenerator, PatchDiscriminator, GANInitializer
 from image_pool import ImagePool
 
 def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lmda_idt, pool_size, context):
@@ -15,9 +15,9 @@ def train(dataset, start_epoch, max_epochs, lr_d, lr_g, batch_size, lmda_cyc, lm
     training_set_b = load_dataset(dataset, "trainB")
 
     gen_ab = ResnetGenerator()
-    dis_b = Discriminator()
+    dis_b = PatchDiscriminator()
     gen_ba = ResnetGenerator()
-    dis_a = Discriminator()
+    dis_a = PatchDiscriminator()
     bce_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss()
     l1_loss = mx.gluon.loss.L1Loss()
 
