@@ -1,4 +1,5 @@
 import os
+import cv2
 import random
 import zipfile
 import numpy as np
@@ -38,6 +39,11 @@ def get_batches(dataset_a, dataset_b, batch_size, fine_size=(256, 256), load_siz
             batch_b = batchify_fn(samples_b)
             yield batch_a.as_in_context(ctx), batch_b.as_in_context(ctx)
 
+def rotate(image, angle):
+    h, w = image.shape[:2]
+    mat = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1)
+    return mx.nd.array(cv2.warpAffine(image.asnumpy(), mat, (w, h), flags=random.randint(0, 4)))
+
 
 class Sampler:
     def __init__(self, dataset, fine_size, load_size):
@@ -47,9 +53,11 @@ class Sampler:
 
     def __call__(self, idx):
         img = load_image(self._dataset[idx % len(self._dataset)])
+        img = rotate(img, random.uniform(-20, 20))
         img = mx.image.resize_short(img, min(self._load_size), interp=random.randint(0, 4))
         img, _ = mx.image.random_crop(img, self._fine_size)
         img, _ = gcv.data.transforms.image.random_flip(img, px=0.5)
+        img = gcv.data.transforms.experimental.image.random_color_distort(img)
         return mx.nd.image.normalize(mx.nd.image.to_tensor(img), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 
 
@@ -60,18 +68,19 @@ def reconstruct_color(img):
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
     batch_size = 4
     dataset_a = load_dataset("vangogh2photo", "trainA")
     dataset_b = load_dataset("vangogh2photo", "trainB")
-    batch_a, batch_b = next(get_batches(dataset_a, dataset_b, batch_size))
-    print("batch_a preview: ", batch_a)
-    print("batch_b preview: ", batch_b)
-    import matplotlib.pyplot as plt
-    for i in range(batch_size):
-        plt.subplot(batch_size * 2 // 8 + 1, 4, i + 1)
-        plt.imshow(reconstruct_color(batch_a[i].transpose((1, 2, 0))).asnumpy())
-        plt.axis("off")
-        plt.subplot(batch_size * 2 // 8 + 1, 4, i + batch_size + 1)
-        plt.imshow(reconstruct_color(batch_b[i].transpose((1, 2, 0))).asnumpy())
-        plt.axis("off")
-    plt.show()
+    for batch_a, batch_b in get_batches(dataset_a, dataset_b, batch_size):
+        print("batch_a preview: ", batch_a)
+        print("batch_b preview: ", batch_b)
+        for i in range(batch_size):
+            plt.subplot(batch_size * 2 // 8 + 1, 4, i + 1)
+            plt.imshow(reconstruct_color(batch_a[i].transpose((1, 2, 0))).asnumpy())
+            plt.axis("off")
+            plt.subplot(batch_size * 2 // 8 + 1, 4, i + batch_size + 1)
+            plt.imshow(reconstruct_color(batch_b[i].transpose((1, 2, 0))).asnumpy())
+            plt.axis("off")
+        plt.show()
