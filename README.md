@@ -1,6 +1,6 @@
 # cycle_gan
 
-CycleGAN with Spectral Normalization and Class Activation Mapping Attention implemented by [MXNET](https://mxnet.incubator.apache.org/).
+CycleGAN with Spectral Normalization and Class Activation Mapping Attention implemented using [MXNet](https://mxnet.incubator.apache.org/).
 
 I tried to train it using the dataset [selfie2anime](https://www.kaggle.com/arnaud58/selfie2anime) and got the following results:
 
