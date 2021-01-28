@@ -5,65 +5,122 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   </head>
   <body>
-    <div id="repo">repo: <a href="https://github.com/ufownl/cycle_gan">https://github.com/ufownl/cycle_gan</a></div>
-    <div>
-      server: <input type="text" id="server" />
+    <div id="app">
+      <p>
+        <span>repository: </span>
+        <a href="https://github.com/ufownl/cycle_gan">https://github.com/ufownl/cycle_gan</a>
+      </p>
+      <p>
+        <label for="server">server</label>
+        <input v-model="server" type="text" id="server" />
+      </p>
+      <p>
+        <div>
+          <input type="file" accept="image/*" @change="chooseImage" :disabled="processing" />
+          <button @click="run" :disabled="processing">Run</button>
+        </div>
+      </p>
+      <canvas ref="real" :width="realWidth" :height="realHeight"></canvas>
+      <div>{{ message }}</div>
+      <div v-if="!processing && fake">
+        <img :src="fake" alt="fake image" />
+      </div>
     </div>
-    <div>
-      <input type="file" id="real" accept="image/*" />
-      <input type="submit" value="upload" onclick="upload()" />
-    </div>
-    <div id="messages" />
-    <script type="text/javascript">
-      let processing = false
+  </body>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.10"></script>
+  <script type="text/javascript">
+    function get_param(name) {
+      let reg = new RegExp('(^|&)' + name + '=([^&]*)(&|$)')
+      let r = window.location.search.substr(1).match(reg)
+      if (r != null) {
+        return unescape(r[2])
+      }
+      return null
+    }
 
-      function upload() {
-        let files = document.getElementById("real").files
-        if (files.length === 0) {
-          document.getElementById("messages").innerHTML = "Please select an image file!" + "<br/>"
-          return
-        }
-        document.getElementById("messages").innerHTML = "Uploading and processing..." + "<br/>"
-        if (processing) {
-          return
-        }
-        processing = true
-        let form = new FormData()
-        form.append("file", files[0])
-        let url = encodeURI(document.getElementById("server").value + "/cycle_gan/fake")
-        let xhr = new XMLHttpRequest()
-        xhr.open("POST", url, true)
-        xhr.responseType = "blob"
-        xhr.onload = function() {
-          if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-              document.getElementById("messages").innerHTML = "<img src=\""+ URL.createObjectURL(xhr.response) + "\" alt=\"fake image\" />"
-            }
-            processing = false
+    let server = get_param('server')
+    new Vue({
+      el: '#app',
+      data: {
+        server: server ? server : 'http://localhost',
+        real: undefined,
+        message: '',
+        processing: false,
+        rawFake: undefined
+      },
+      computed: {
+        realWidth() {
+          if (this.real) {
+            return this.real.width
+          } else {
+            return 0
+          }
+        },
+        realHeight() {
+          if (this.real) {
+            return this.real.height
+          } else {
+            return 0
+          }
+        },
+        fake() {
+          if (this.rawFake) {
+            return URL.createObjectURL(this.rawFake)
+          } else {
+            return undefined
           }
         }
-        xhr.onerror = function() {
-          document.getElementById("messages").innerHTML = "ERROR: Failed to call " + "<a href=" + url + ">" + url + "</a>" + "<br/>"
-          processing = false
+      },
+      methods: {
+        chooseImage(e) {
+          let file = e.target.files[0]
+          if (file) {
+            this.rawFake = undefined
+            let img = new Image()
+            img.onload = () => {
+              this.real = img
+              this.$nextTick(() => {
+                let context = this.$refs.real.getContext('2d')
+                context.drawImage(img, 0, 0)
+              })
+            }
+            img.src = URL.createObjectURL(file)
+          }
+        },
+        run() {
+          if (!this.real) {
+            this.message = 'Please select an image file!'
+            return
+          }
+          this.message = 'Uploading and processing...'
+          this.processing = true
+          this.$refs.real.toBlob(blob => {
+            let form = new FormData()
+            form.append('real', blob)
+            let url = encodeURI(this.server + '/cycle_gan/fake')
+            let xhr = new XMLHttpRequest()
+            xhr.responseType = "blob"
+            xhr.open('POST', url, true)
+            xhr.onload = () => {
+              if (xhr.readyState !== 4) {
+                return
+              }
+              this.processing = false
+              if (xhr.status !== 200) {
+                this.message = 'ERROR: HTTP status code (' + xhr.status + ')'
+                return
+              }
+              this.message = ''
+              this.rawFake = xhr.response
+            }
+            xhr.onerror = () => {
+              this.message = 'ERROR: Failed to call "' + url + '"'
+              this.processing = false
+            }
+            xhr.send(form)
+          })
         }
-        xhr.send(form)
       }
-
-      function get_param(name) {
-        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i")
-        var r = window.location.search.substr(1).match(reg)
-        if (r != null) {
-          return unescape(r[2])
-        }
-        return null
-      }
-
-      let server = get_param("server")
-      if (server) {
-        document.getElementById("server").value = server
-      } else {
-        document.getElementById("server").value = "http://localhost"
-      }
-    </script>
-  </body>
+    })
+  </script>
 </html>
