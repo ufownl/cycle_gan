@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>cycle_gan - selfie2anime</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  </head>
+  <body>
+    <div id="app">
+      <p>
+        <span>repository: </span>
+        <a href="https://github.com/ufownl/cycle_gan">https://github.com/ufownl/cycle_gan</a>
+      </p>
+      <p>
+        <label for="server">server</label>
+        <input v-model="server" type="text" id="server" />
+      </p>
+      <face-selector ref="real" :disabled="processing"></face-selector>
+      <div style="margin-bottom:5px">
+        <button @click="run" :disabled="processing">Run</button>
+        <span style="margin-left:5px">{{ message }}</span>
+      </div>
+      <div v-if="!processing && fake">
+        <img :src="fake" alt="fake image" />
+      </div>
+    </div>
+  </body>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.10"></script>
+  <script src="https://cdn.jsdelivr.net/gh/cgarciagl/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script>
+    Vue.component("face-selector", {
+      props: {
+        disabled: {
+          type: Boolean,
+          default: false
+        }
+      },
+      data() {
+        return {
+          image: undefined,
+          faces: [],
+          index: 0,
+          loading: true
+        }
+      },
+      computed: {
+        selectedFace() {
+          if (!this.image) {
+            return undefined
+          }
+          let face = this.faces[this.index]
+          if (!face) {
+            return undefined
+          }
+          let hw = Math.max(face.box.width, face.box.height)
+          return {
+            image: this.image,
+            crop: {
+              x: Math.max(face.box.x - Math.round(hw * 0.3), 0),
+              y: Math.max(face.box.y - Math.round(hw * 0.4), 0),
+              width: Math.round(hw * 1.6),
+              height: Math.round(hw * 1.6)
+            }
+          }
+        }
+      },
+      watch: {
+        selectedFace(value) {
+          if (value) {
+            let context = this.$refs.face.getContext('2d')
+            context.drawImage(value.image, value.crop.x, value.crop.y, value.crop.width, value.crop.height, 0, 0, 256, 256)
+          }
+        }
+      },
+      async mounted() {
+        await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/gh/cgarciagl/face-api.js@0.22.2/weights/')
+        this.loading = false
+      },
+      methods: {
+        chooseImage(e) {
+          let file = e.target.files[0]
+          if (file) {
+            this.rawFake = undefined
+            let img = new Image()
+            img.onload = async () => {
+              this.image = img
+              this.faces = await faceapi.detectAllFaces(img, new faceapi.SsdMobilenetv1Options())
+              this.index = 0
+            }
+            img.src = URL.createObjectURL(file)
+          }
+        },
+        toBlob(f) {
+          if (this.selectedFace) {
+            this.$refs.face.toBlob(f)
+          } else {
+            f()
+          }
+        }
+      },
+      template: '\
+        <div>\
+          <div style="margin-bottom:5px">\
+            <input type="file" accept="image/*" :disabled="disabled || loading" @change="chooseImage" />\
+            <button v-if="faces.length > 1" :disabled="disabled || loading" @click="index = (index + 1) % faces.length">\
+              Next Face\
+            </button>\
+          </div>\
+          <canvas ref="face" width="256" height="256" />\
+        </div>\
+      '
+    })
+  </script>
+  <script type="text/javascript">
+    function get_param(name) {
+      let reg = new RegExp('(^|&)' + name + '=([^&]*)(&|$)')
+      let r = window.location.search.substr(1).match(reg)
+      if (r != null) {
+        return unescape(r[2])
+      }
+      return null
+    }
+
+    let server = get_param('server')
+    new Vue({
+      el: '#app',
+      data: {
+        server: server ? server : 'http://localhost',
+        message: '',
+        processing: false,
+        rawFake: undefined
+      },
+      computed: {
+        fake() {
+          if (this.rawFake) {
+            return URL.createObjectURL(this.rawFake)
+          } else {
+            return undefined
+          }
+        }
+      },
+      methods: {
+        run() {
+          this.$refs.real.toBlob(blob => {
+            if (!blob) {
+              this.message = 'Please select an image file!'
+              return
+            }
+            this.message = 'Uploading and processing...'
+            this.processing = true
+            let form = new FormData()
+            form.append('real', blob)
+            let url = encodeURI(this.server + '/cycle_gan/fake')
+            let xhr = new XMLHttpRequest()
+            xhr.responseType = "blob"
+            xhr.open('POST', url, true)
+            xhr.onload = () => {
+              if (xhr.readyState !== 4) {
+                return
+              }
+              this.processing = false
+              if (xhr.status !== 200) {
+                this.message = 'ERROR: HTTP status code (' + xhr.status + ')'
+                return
+              }
+              this.message = ''
+              this.rawFake = xhr.response
+            }
+            xhr.onerror = () => {
+              this.message = 'ERROR: Failed to call "' + url + '"'
+              this.processing = false
+            }
+            xhr.send(form)
+          })
+        }
+      }
+    })
+  </script>
+</html>
