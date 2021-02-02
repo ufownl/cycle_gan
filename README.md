@@ -13,3 +13,5 @@ I tried to train it using the dataset [selfie2anime](https://www.kaggle.com/arna
 ![p7](/docs/w7.jpg)
 ![p8](/docs/w8.jpg)
 ![p9](/docs/w9.jpg)
+
+If you want to generate your own anime avatar, try the [Online Demo](https://ufownl.github.io/cycle_gan/selfie2anime.html?server=https://avatar.rangerufo.site), please!
